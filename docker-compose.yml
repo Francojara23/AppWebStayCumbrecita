@@ -14,7 +14,7 @@ services:
   #     - "5433:5432"
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
-  #     - ./backend/sql:/docker-entrypoint-initdb.d
+  #     - ./backendStayCumbrecita/sql:/docker-entrypoint-initdb.d
   #   networks:
   #     - app-network
   #   healthcheck:
@@ -28,7 +28,7 @@ services:
   # ================================
   backend:
     build:
-      context: ./backend
+      context: ./backendStayCumbrecita
       dockerfile: Dockerfile
       target: runtime
     container_name: staycumbrecita-backend
@@ -36,7 +36,7 @@ services:
     ports:
       - "5001:5001"
     env_file:
-      - ./backend/.env
+      - ./backendStayCumbrecita/.env
     environment:
       # Configuración específica para Docker
       NODE_ENV: production
@@ -95,7 +95,7 @@ services:
   # ================================
   frontend:
     build:
-      context: ./frontendStayAtCumbrecita
+      context: ./frontendStayCumbrecita
       dockerfile: Dockerfile
       target: runtime
       args:
@@ -105,7 +105,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ./frontendStayAtCumbrecita/.env.local
+      - ./frontendStayCumbrecita/.env.local
     environment:
       # Configuración específica para Docker
       NODE_ENV: production
@@ -137,7 +137,7 @@ services:
   # ================================
   chatbot:
     build:
-      context: ./stay-chatbot
+      context: ./stayCumbrecita-chatbot
       dockerfile: Dockerfile
     container_name: staycumbrecita-chatbot
     restart: unless-stopped

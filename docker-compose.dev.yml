@@ -27,7 +27,7 @@ services:
   # ================================
   backend:
     build:
-      context: ./backend
+      context: ./backendStayCumbrecita
       dockerfile: Dockerfile
       target: builder
     container_name: staycumbrecita-backend-dev
@@ -35,7 +35,7 @@ services:
     ports:
       - "5001:5001"
     env_file:
-      - ./backend/.env
+      - ./backendStayCumbrecita/.env
     environment:
       # Base de datos para Docker - Conectar a PostgreSQL local
       DB_HOST: host.docker.internal
@@ -73,7 +73,7 @@ services:
       APP_BACKEND_URL: http://backend:5001
       APP_FRONTEND_URL: http://frontend:3000
     volumes:
-      - ./backend:/app
+      - ./backendStayCumbrecita:/app
       - /app/node_modules
       - backend_uploads:/app/uploads
     depends_on: []
@@ -86,7 +86,7 @@ services:
   # ================================
   frontend:
     build:
-      context: ./frontendStayAtCumbrecita
+      context: ./frontendStayCumbrecita
       dockerfile: Dockerfile
       target: builder
     container_name: staycumbrecita-frontend-dev
@@ -94,7 +94,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ./frontendStayAtCumbrecita/.env.local
+      - ./frontendStayCumbrecita/.env.local
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: http://localhost:5001
@@ -107,7 +107,7 @@ services:
       # Google Maps API Key
       NEXT_PUBLIC_MAPS_API_GOOGLE_KEY: AIzaSyBlzl53EznHxN3N5-FRJb3tlAARdOXAAWo
     volumes:
-      - ./frontendStayAtCumbrecita:/app
+      - ./frontendStayCumbrecita:/app
       - /app/node_modules
       - /app/.next
     depends_on:
