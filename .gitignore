@@ -350,4 +350,17 @@ benchmark/
 # Variables de entorno específicas por servicio
 /backendStayCumbrecita/.env
 /frontendStayCumbrecita/.env.local
-/stayCumbrecita-chatbot/.env 
+/stayCumbrecita-chatbot/.env
+
+# ================================
+# ARCHIVOS DOCKER CON CREDENCIALES
+# ================================
+# Archivos Docker Compose con credenciales sensibles
+docker-compose.yml
+docker-compose.dev.yml
+
+# Variables de entorno para Docker
+docker.env
+
+# Dockerfiles con credenciales hardcodeadas
+*/Dockerfile 

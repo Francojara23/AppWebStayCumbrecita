@@ -1,0 +1,79 @@
+# ================================
+# STAGE 1: Build dependencies
+# ================================
+FROM node:18-alpine AS dependencies
+
+# Instalar dependencias del sistema necesarias
+RUN apk add --no-cache libc6-compat python3 make g++
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY package*.json ./
+
+# Instalar dependencias de producción solamente
+RUN npm ci
+
+# ================================
+# STAGE 2: Build application
+# ================================
+FROM node:18-alpine AS builder
+
+# Instalar dependencias del sistema necesarias para compilar
+RUN apk add --no-cache libc6-compat python3 make g++
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY package*.json ./
+
+# Instalar todas las dependencias (incluyendo devDependencies)
+RUN npm ci
+
+# Copiar código fuente
+COPY . .
+
+# Compilar la aplicación TypeScript
+RUN npm run build
+
+# ================================
+# STAGE 3: Production runtime
+# ================================
+FROM node:18-alpine AS runtime
+
+# Instalar dependencias del sistema necesarias para runtime
+RUN apk add --no-cache libc6-compat
+
+# Crear usuario no-root para seguridad
+RUN adduser --system --uid 1001 nestjs
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar dependencias de producción desde el stage dependencies
+COPY --from=dependencies --chown=nestjs:nodejs /app/node_modules ./node_modules
+
+# Copiar archivos compilados desde el stage builder
+COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
+
+# Copiar archivos de configuración necesarios
+COPY --chown=nestjs:nodejs package*.json ./
+COPY --chown=nestjs:nodejs tsconfig*.json ./
+
+# Crear directorios necesarios con permisos correctos
+RUN mkdir -p /app/uploads /app/logs && chown -R nestjs:nodejs /app
+
+# Cambiar al usuario no-root
+USER nestjs
+
+# Exponer puerto
+EXPOSE 5001
+
+# Variables de entorno por defecto
+ENV NODE_ENV=production
+ENV PORT=5001
+
+# Comando de inicio
+CMD ["node", "dist/main"] 

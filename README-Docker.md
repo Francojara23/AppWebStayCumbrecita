@@ -1,255 +1,342 @@
-# 🐳 Docker Setup - StayAtCumbrecita
+# 🐳 Stay At Cumbrecita - Configuración Docker
 
-Esta guía te ayudará a configurar y ejecutar el proyecto StayAtCumbrecita usando Docker Desktop.
+Este proyecto utiliza Docker para ejecutar todos los servicios de la aplicación **Stay At Cumbrecita** de forma containerizada y segura.
 
-## 📋 Requisitos Previos
+## 📋 Tabla de Contenidos
 
-### 1. Docker Desktop
-- **Descargar**: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- **Instalar** y asegurarse de que esté ejecutándose
-- **Verificar**: `docker --version` y `docker-compose --version`
+- [🔒 Configuración Segura](#-configuración-segura)
+- [📦 Servicios](#-servicios)
+- [🚀 Instalación](#-instalación)
+- [⚙️ Configuración de Variables de Entorno](#️-configuración-de-variables-de-entorno)
+- [🏗️ Construcción y Ejecución](#️-construcción-y-ejecución)
+- [🔧 Modo Desarrollo](#-modo-desarrollo)
+- [📊 Monitoreo](#-monitoreo)
+- [🛠️ Troubleshooting](#️-troubleshooting)
 
-### 2. Configuración de Variables de Entorno
-El proyecto ya tiene configurados los archivos de variables de entorno:
+## 🔒 Configuración Segura
 
-- **Backend**: `backend/.env`
-- **Frontend**: `frontendStayAtCumbrecita/.env.local`
+⚠️ **IMPORTANTE**: Los archivos Docker con credenciales están excluidos del repositorio por seguridad.
 
-Los archivos ya están configurados con:
+Los siguientes archivos **NO** están en el repositorio y debes crearlos localmente:
+- `docker-compose.yml`
+- `docker-compose.dev.yml`
+- `*/Dockerfile`
 
-**Backend (.env):**
-- Base de datos PostgreSQL configurada
-- Cloudinary para gestión de imágenes
-- Gmail para notificaciones por email
-- Firebase para push notifications
-- Claves de encriptación
+## 📦 Servicios
 
-**Frontend (.env.local):**
-- API URL apuntando al backend
-- Google Maps API key
-- Configuración de desarrollo
+El stack de Docker incluye los siguientes servicios:
 
-Docker automáticamente usará estas configuraciones y solo ajustará las variables necesarias para el entorno de contenedores.
+| Servicio | Puerto | Descripción |
+|----------|---------|-------------|
+| **Backend** | 5001 | API NestJS con TypeScript |
+| **Frontend** | 3000 | Aplicación Next.js |
+| **Chatbot** | 8000 | API FastAPI con IA |
+| **Redis** | 6379 | Cache en memoria |
+| **PostgreSQL** | 5432 | Base de datos (local) |
 
-## 🚀 Comandos de Ejecución
+## 🚀 Instalación
 
-### Producción (Recomendado)
+### 1. Prerrequisitos
+
 ```bash
-# Construir y ejecutar todos los servicios
-docker-compose up --build
+# Instalar Docker y Docker Compose
+docker --version
+docker-compose --version
 
-# Ejecutar en segundo plano
-docker-compose up -d --build
-
-# Ver logs
-docker-compose logs -f
-
-# Parar todos los servicios
-docker-compose down
+# Tener PostgreSQL ejecutándose localmente
+# O descomentar el servicio postgres en docker-compose.yml
 ```
 
-### Desarrollo (Con Hot Reload)
+### 2. Clonar configuraciones
+
 ```bash
-# Usar archivo de desarrollo
-docker-compose -f docker-compose.dev.yml up --build
+# Copiar archivos de ejemplo
+cp docker-compose.example.yml docker-compose.yml
+cp docker-compose.dev.example.yml docker-compose.dev.yml
 
-# En segundo plano
-docker-compose -f docker-compose.dev.yml up -d --build
-
-# Parar servicios de desarrollo
-docker-compose -f docker-compose.dev.yml down
+# Copiar Dockerfiles
+cp backendStayCumbrecita/Dockerfile.example backendStayCumbrecita/Dockerfile
+cp frontendStayCumbrecita/Dockerfile.example frontendStayCumbrecita/Dockerfile
+cp stayCumbrecita-chatbot/Dockerfile.example stayCumbrecita-chatbot/Dockerfile
 ```
 
-## 📊 Servicios Disponibles
+## ⚙️ Configuración de Variables de Entorno
 
-### 🌐 URLs de Acceso
-- **Frontend**: http://localhost:3000
-- **Backend**: http://localhost:5001
-- **API Docs**: http://localhost:5001/api
-- **PostgreSQL**: localhost:5432
-- **Redis**: localhost:6379
+### 1. Crear archivo de variables de entorno
 
-### 🔍 Contenedores
-- `staycumbrecita-frontend` - Next.js (Puerto 3000)
-- `staycumbrecita-backend` - NestJS (Puerto 5001)
-- `staycumbrecita-postgres` - PostgreSQL (Puerto 5432)
-- `staycumbrecita-redis` - Redis (Puerto 6379)
-
-## 🛠️ Comandos Útiles
-
-### Gestión de Contenedores
 ```bash
-# Ver contenedores ejecutándose
+# Copiar el archivo de ejemplo
+cp docker.env.example docker.env
+```
+
+### 2. Configurar credenciales
+
+Edita el archivo `docker.env` con tus credenciales reales:
+
+```bash
+# ================================
+# BASE DE DATOS
+# ================================
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=adminCumbrecita
+DB_PASSWORD=tu_password_seguro
+DB_DATABASE=StayAtCumbrecita
+
+# ================================
+# ENCRIPTACIÓN (Generar claves seguras)
+# ================================
+# Usa: openssl rand -hex 32
+ENCRYPTION_KEY=tu_clave_de_64_caracteres_hex
+ENCRYPTION_IV=tu_iv_de_32_caracteres_hex
+SALT_ROUNDS=8
+SECRET_PEPPER=tu_pepper_de_32_caracteres_hex
+
+# ================================
+# CLOUDINARY
+# ================================
+CLOUDINARY_CLOUD_NAME=tu_cloud_name
+CLOUDINARY_API_KEY=tu_api_key
+CLOUDINARY_API_SECRET=tu_api_secret
+
+# ================================
+# GMAIL
+# ================================
+GMAIL_HOST=smtp.gmail.com
+GMAIL_PORT=587
+GMAIL_USER=tu_email@gmail.com
+GMAIL_PASS=tu_app_password
+GMAIL_SECURE=false
+GMAIL_FROM=tu_email@gmail.com
+
+# ================================
+# GOOGLE MAPS
+# ================================
+NEXT_PUBLIC_MAPS_API_GOOGLE_KEY=tu_google_maps_key
+
+# ================================
+# OPENAI
+# ================================
+OPENAI_API_KEY=sk-proj-tu_openai_key
+```
+
+### 3. Configurar archivos .env de cada servicio
+
+```bash
+# Backend
+cp backendStayCumbrecita/.env.example backendStayCumbrecita/.env
+
+# Frontend 
+cp frontendStayCumbrecita/.env.example frontendStayCumbrecita/.env.local
+
+# Chatbot
+cp stayCumbrecita-chatbot/env.example stayCumbrecita-chatbot/.env
+```
+
+### 4. Generar claves de encriptación seguras
+
+```bash
+# Generar ENCRYPTION_KEY (64 caracteres hex)
+openssl rand -hex 32
+
+# Generar ENCRYPTION_IV (32 caracteres hex)
+openssl rand -hex 16
+
+# Generar SECRET_PEPPER
+openssl rand -hex 16
+```
+
+## 🏗️ Construcción y Ejecución
+
+### Modo Producción
+
+```bash
+# Construir todas las imágenes
+docker-compose build
+
+# Verificar que las imágenes se crearon
+docker images | grep staycumbrecita
+
+# Levantar todos los servicios
+docker-compose up -d
+
+# Verificar estado de los servicios
 docker-compose ps
 
-# Reiniciar un servicio específico
-docker-compose restart backend
-
-# Reconstruir un servicio específico
-docker-compose up --build backend
-
-# Ejecutar comando en contenedor
-docker-compose exec backend npm run migration:run
-docker-compose exec frontend npm run lint
-```
-
-### Gestión de Volúmenes
-```bash
-# Ver volúmenes
-docker volume ls
-
-# Limpiar volúmenes no utilizados
-docker volume prune
-
-# Eliminar volúmenes específicos
-docker volume rm staycumbrecita_postgres_data
-```
-
-### Logs y Debugging
-```bash
-# Ver logs de todos los servicios
-docker-compose logs
+# Ver logs en tiempo real
+docker-compose logs -f
 
 # Ver logs de un servicio específico
-docker-compose logs backend
-docker-compose logs frontend
-
-# Seguir logs en tiempo real
 docker-compose logs -f backend
-
-# Entrar al shell de un contenedor
-docker-compose exec backend sh
-docker-compose exec frontend sh
 ```
 
-## 🔧 Solución de Problemas
+### URLs de acceso
 
-### Problema: Puerto ya en uso
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:5001
+- **Chatbot API**: http://localhost:8000
+- **Redis**: http://localhost:6379
+
+## 🔧 Modo Desarrollo
+
+Para desarrollo con hot-reload:
+
 ```bash
-# Verificar qué está usando el puerto
+# Usar el archivo de desarrollo
+docker-compose -f docker-compose.dev.yml build
+docker-compose -f docker-compose.dev.yml up -d
+
+# Ver logs en desarrollo
+docker-compose -f docker-compose.dev.yml logs -f
+```
+
+### Diferencias en desarrollo:
+
+- **Hot reload** habilitado
+- **Volúmenes** montados para código fuente
+- **node_modules** excluidos del bind mount
+- **Logs verbosos**
+
+## 📊 Monitoreo
+
+### Health Checks
+
+Todos los servicios tienen health checks configurados:
+
+```bash
+# Verificar salud de los servicios
+docker-compose ps
+
+# Ver detalles de health check
+docker inspect staycumbrecita-backend --format='{{.State.Health.Status}}'
+```
+
+### Comandos útiles
+
+```bash
+# Reiniciar un servicio específico
+docker-compose restart frontend
+
+# Reconstruir sin cache
+docker-compose build --no-cache backend
+
+# Ver recursos utilizados
+docker stats
+
+# Limpiar contenedores parados
+docker-compose down
+docker system prune -f
+
+# Ver volúmenes
+docker volume ls | grep staycumbrecita
+
+# Acceder a un contenedor
+docker-compose exec backend sh
+docker-compose exec frontend sh
+docker-compose exec chatbot bash
+```
+
+## 🛠️ Troubleshooting
+
+### Problemas comunes
+
+#### 1. Error de permisos en archivos
+
+```bash
+# Cambiar propietario de los archivos
+sudo chown -R $USER:$USER .
+
+# Dar permisos de ejecución
+chmod +x docker-*.sh
+```
+
+#### 2. Puerto ya en uso
+
+```bash
+# Ver qué proceso usa el puerto
 lsof -i :3000
 lsof -i :5001
 
-# Cambiar puertos en docker-compose.yml
-ports:
-  - "3001:3000"  # Cambiar puerto local
+# Matar proceso
+kill -9 PID
 ```
 
-### Problema: Cambios no se reflejan
-```bash
-# Reconstruir completamente
-docker-compose down
-docker-compose up --build --force-recreate
+#### 3. Problemas de base de datos
 
+```bash
+# Verificar conexión a PostgreSQL local
+pg_isready -h localhost -p 5432
+
+# Crear base de datos manualmente
+createdb -h localhost -U adminCumbrecita StayAtCumbrecita
+```
+
+#### 4. Error de API keys
+
+```bash
+# Verificar variables de entorno dentro del contenedor
+docker-compose exec frontend env | grep NEXT_PUBLIC
+docker-compose exec chatbot env | grep OPENAI
+```
+
+#### 5. Problemas de build
+
+```bash
 # Limpiar cache de Docker
-docker system prune -a
-```
-
-### Problema: Base de datos no conecta
-```bash
-# Verificar que PostgreSQL esté ejecutándose
-docker-compose ps postgres
-
-# Ver logs de PostgreSQL
-docker-compose logs postgres
-
-# Reiniciar PostgreSQL
-docker-compose restart postgres
-```
-
-### Problema: Memoria insuficiente
-```bash
-# Ajustar recursos en Docker Desktop
-# Settings → Resources → Advanced
-# Aumentar Memory y Swap
-```
-
-## 📁 Estructura de Archivos Docker
-
-```
-appWebCumbrecita/
-├── docker-compose.yml          # Producción
-├── docker-compose.dev.yml      # Desarrollo
-├── .env                        # Variables de entorno
-├── backend/
-│   ├── Dockerfile             # Imagen del backend
-│   └── .dockerignore          # Archivos ignorados
-├── frontendStayAtCumbrecita/
-│   ├── Dockerfile             # Imagen del frontend
-│   └── .dockerignore          # Archivos ignorados
-└── README-Docker.md           # Esta documentación
-```
-
-## 🔄 Flujo de Desarrollo
-
-### 1. Desarrollo Local
-```bash
-# Modo desarrollo con hot reload
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-### 2. Testing
-```bash
-# Ejecutar tests en contenedor
-docker-compose exec backend npm run test
-docker-compose exec frontend npm run test
-```
-
-### 3. Producción
-```bash
-# Modo producción optimizado
-docker-compose up --build -d
-```
-
-## 🚨 Comandos de Emergencia
-
-### Resetear Todo
-```bash
-# Parar y eliminar todo
-docker-compose down -v --remove-orphans
-
-# Limpiar sistema completo
-docker system prune -a --volumes
+docker builder prune -f
 
 # Reconstruir desde cero
-docker-compose up --build --force-recreate
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
 ```
 
-### Backup de Base de Datos
+### Logs de debug
+
 ```bash
-# Crear backup
-docker-compose exec postgres pg_dump -U postgres staycumbrecita > backup.sql
+# Backend logs
+docker-compose logs backend 2>&1 | grep ERROR
 
-# Restaurar backup
-docker-compose exec -T postgres psql -U postgres staycumbrecita < backup.sql
+# Frontend build logs
+docker-compose logs frontend | grep -A 5 -B 5 "Failed"
+
+# Chatbot logs
+docker-compose logs chatbot | grep -i error
 ```
 
-## 📈 Monitoreo y Performance
+## 🔐 Mejores Prácticas de Seguridad
 
-### Verificar Recursos
-```bash
-# Estadísticas de contenedores
-docker stats
+### 1. Variables de entorno
+- ✅ **Nunca** commitees archivos con credenciales
+- ✅ Usa archivos `.example` para documentar variables requeridas
+- ✅ Genera claves fuertes con `openssl rand`
+- ✅ Rota credenciales regularmente
 
-# Información del sistema
-docker system df
+### 2. Dockerfile
+- ✅ Usa usuarios no-root en contenedores
+- ✅ Multi-stage builds para imágenes más pequeñas
+- ✅ Instala solo dependencias necesarias
+- ✅ No incluyas secrets en las imágenes
 
-# Información de imágenes
-docker images
-```
+### 3. Networking
+- ✅ Usa redes internas de Docker
+- ✅ Expone solo puertos necesarios
+- ✅ Configura CORS apropiadamente
 
-### Optimización
-- Los Dockerfiles usan **multi-stage builds** para reducir tamaño
-- Los `.dockerignore` excluyen archivos innecesarios
-- Las imágenes Alpine son más ligeras
-- Los volúmenes persistentes mantienen datos entre reinicios
+### 4. Volúmenes
+- ✅ Usa volúmenes nombrados para datos persistentes
+- ✅ No montes directorios sensibles del host
+- ✅ Configura permisos apropiados
 
-## 🎯 Próximos Pasos
+## 📞 Soporte
 
-1. **Verificar variables de entorno** en `backend/.env` y `frontendStayAtCumbrecita/.env.local`
-2. **Ejecutar** `docker-compose up --build`
-3. **Verificar** que todos los servicios estén funcionando
-4. **Acceder** a http://localhost:3000 para el frontend
-5. **Probar** la API en http://localhost:5001/api
+Si tienes problemas con la configuración Docker:
 
-¡Ya tienes tu aplicación corriendo en Docker! 🎉 
+1. **Verifica los logs**: `docker-compose logs [servicio]`
+2. **Revisa las variables de entorno**: Los archivos `.env` deben estar correctamente configurados
+3. **Verifica conectividad**: PostgreSQL debe estar ejecutándose y accesible
+4. **Limpia y reconstruye**: `docker-compose down && docker-compose build --no-cache`
+
+---
+
+**⚠️ Recordatorio**: Los archivos `docker-compose.yml` y `Dockerfile` contienen credenciales sensibles y **NO** deben ser commiteados al repositorio. 

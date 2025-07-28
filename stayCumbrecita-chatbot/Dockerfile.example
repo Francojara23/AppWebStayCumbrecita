@@ -1,0 +1,42 @@
+# ================================
+# PYTHON FASTAPI CHATBOT
+# ================================
+FROM python:3.11-slim
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Instalar dependencias del sistema necesarias
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crear entorno virtual de Python
+RUN python -m venv /app/venv
+
+# Actualizar pip dentro del entorno virtual
+RUN /app/venv/bin/pip install --upgrade pip
+
+# Copiar archivo de dependencias
+COPY requirements.txt .
+
+# Instalar dependencias de Python
+RUN /app/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# Copiar código fuente
+COPY app/ ./app/
+COPY sql/ ./sql/
+
+# Crear directorio de uploads
+RUN mkdir -p uploads
+
+# Exponer puerto
+EXPOSE 8000
+
+# Variables de entorno por defecto
+ENV PYTHONPATH=/app
+ENV ENVIRONMENT=production
+
+# Comando de inicio usando el entorno virtual
+CMD ["/app/venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
