@@ -1,326 +1,621 @@
-# 🏨 Stay at Cumbrecita - Backend
+# 🏨 Stay at Cumbrecita - Backend API
 
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
 <p align="center">
-  Backend para la plataforma de hospedajes <strong>Stay at Cumbrecita</strong> - Una aplicación completa de gestión hotelera construida con <a href="http://nestjs.com/" target="_blank">NestJS</a>
+  <strong>API Backend completa para la plataforma de hospedajes Stay at Cumbrecita</strong><br/>
+  Construida con <a href="http://nestjs.com/" target="_blank">NestJS</a>, <a href="https://www.typescriptlang.org/" target="_blank">TypeScript</a> y <a href="https://www.postgresql.org/" target="_blank">PostgreSQL</a>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="Versión NPM" /></a>
   <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Licencia del Paquete" /></a>
-  <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="Descargas NPM" /></a>
+  <a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
 </p>
 
 ## 📋 Descripción
 
-**Stay at Cumbrecita** es una plataforma integral para la gestión de hospedajes y reservas hoteleras. Este backend, desarrollado con **NestJS** y **TypeScript**, proporciona una API REST completa con funcionalidades avanzadas de Business Intelligence, gestión de pagos, notificaciones en tiempo real y mucho más.
+**Stay at Cumbrecita Backend** es una API REST completa para la gestión integral de hospedajes, reservas y servicios turísticos. Desarrollada con arquitectura modular, patterns SOLID y tecnologías enterprise, proporciona una base sólida y escalable para plataformas de turismo.
 
-### 🎯 Características Principales
+---
 
-- 🏨 **Gestión completa de hospedajes** y habitaciones
-- 🔐 **Sistema de autenticación** JWT con roles granulares
-- 💳 **Procesamiento de pagos** con tarjetas de crédito/débito
-- 📊 **Módulo de reportes** y Business Intelligence
-- 🔔 **Notificaciones en tiempo real** (WebSocket + FCM)
-- 📧 **Sistema de email** con plantillas Handlebars
-- 🖼️ **Gestión de multimedia** (Cloudinary)
-- 📈 **Sistema de publicidad** con renovación automática
-- ⭐ **Módulo de opiniones** y calificaciones
-- 👥 **Gestión de empleados** y roles por hotel
-- 📱 **API REST** completamente documentada con Swagger
+## 🚀 Características Principales
 
-## 🚀 Configuración del Proyecto
+### ⚡ **Tecnologías Core**
+- **Framework**: NestJS 10+ con TypeScript
+- **Base de Datos**: PostgreSQL con TypeORM
+- **Autenticación**: JWT con refresh tokens automáticos
+- **Documentación**: Swagger/OpenAPI 3.0
+- **Validación**: Class-validator + DTO patterns
+- **Arquitectura**: Modular, SOLID, Clean Architecture
 
-### Prerequisitos
+### 🛡️ **Seguridad Enterprise**
+- **Autenticación JWT** con refresh automático
+- **Sistema de roles granular** por funcionalidad
+- **Encriptación AES-256** para datos sensibles
+- **Rate limiting** y protección CORS
+- **Validación exhaustiva** de inputs
 
-- **Node.js** (v18 o superior)
-- **npm** o **yarn**
-- **PostgreSQL** (v13 o superior)
-- **Redis** (opcional, para caché)
+### 📊 **Business Intelligence**
+- **Reportes avanzados** con vistas materializadas
+- **KPIs en tiempo real** de ocupación e ingresos
+- **Analytics** de comportamiento de usuarios
+- **Dashboards** con métricas empresariales
 
-### Instalación
+### 🔔 **Comunicaciones**
+- **WebSocket** para notificaciones en tiempo real
+- **Firebase Cloud Messaging** para móviles
+- **Sistema de email** con 8 plantillas profesionales
+- **Chatbot IA** integrado con OpenAI
 
+---
+
+## 🏗️ Arquitectura del Sistema
+
+### **22 Módulos Principales Implementados**
+
+#### 🔐 **Autenticación y Usuarios**
+```
+auth/           - Sistema completo de autenticación
+├── Login/registro con verificación email
+├── Reset password con tokens seguros  
+├── JWT tokens con refresh automático
+├── Middleware de protección de rutas
+└── Interceptors de auto-refresh
+
+users/          - Gestión de cuentas de usuario
+├── CRUD completo de usuarios
+├── Perfiles personalizables
+├── Gestión de preferencias
+└── Historial de actividad
+
+roles/          - Sistema granular de permisos
+├── Roles jerárquicos (Super Admin, Admin, Empleado)
+├── Permisos específicos por funcionalidad
+├── Asignación dinámica de roles
+└── Control de acceso por hospedaje
+
+permisos/       - Control de acceso específico
+├── Permisos granulares por acción
+├── Validación en tiempo real
+├── Auditoría de accesos
+└── Gestión de excepciones
+```
+
+#### 🏨 **Gestión Hotelera**
+```
+hospedajes/     - Core del sistema hotelero
+├── CRUD completo de hospedajes
+├── Sistema de filtros avanzados
+├── Destacados con publicidad premium
+├── Gestión de multimedia (Cloudinary)
+├── Calificaciones y reviews
+└── Estados y disponibilidad
+
+habitaciones/   - Gestión inteligente de habitaciones
+├── Tipos y capacidades flexibles
+├── Precios dinámicos por temporada
+├── Motor de disponibilidad complejo
+├── Servicios por habitación
+├── Historial de precios
+└── Reglas de ocupación
+
+tipos-hospedaje/ - Categorización flexible
+├── Hotel, Hostería, Cabaña, Apart
+├── Características específicas
+├── Servicios incluidos por tipo
+└── Configuración personalizable
+
+tipos-habitacion/ - Tipología de habitaciones
+├── Individual, Doble, Suite, etc.
+├── Capacidades y comodidades
+├── Precios base por tipo
+└── Reglas de ocupación
+
+servicios/      - Catálogo de servicios
+├── Servicios de hospedaje general
+├── Servicios específicos por habitación
+├── Precios y disponibilidad
+├── Asignación automática
+└── Servicios premium
+```
+
+#### 💰 **Motor Financiero**
+```
+reservas/       - Sistema avanzado de reservas
+├── Motor de disponibilidad inteligente
+├── Validación de conflictos temporales
+├── Estados de reserva (8 estados)
+├── Check-in/Check-out con QR
+├── Gestión de huéspedes múltiples
+├── Notificaciones automáticas
+└── Cancelaciones y modificaciones
+
+pagos/          - Procesamiento de pagos robusto
+├── Tarjetas de crédito/débito
+├── Transferencias bancarias
+├── Estados de pago (Pendiente, Procesando, Aprobado)
+├── Historial completo de transacciones
+├── Validación de tarjetas en tiempo real
+├── Integración con pasarelas
+└── Reportes financieros
+
+tarjetas/       - Gestión segura de tarjetas
+├── Validación de números de tarjeta
+├── Encriptación AES-256
+├── Detección de duplicados
+├── Historial de uso
+└── Cumplimiento PCI-DSS
+
+publicidad/     - Sistema de promoción
+├── Destacados premium
+├── Renovación automática
+├── Métricas de performance
+├── Segmentación por ubicación
+└── ROI tracking
+```
+
+#### 👥 **Gestión Administrativa**
+```
+owners/         - Propietarios de hospedajes
+├── Registro y verificación
+├── Múltiples hospedajes por owner
+├── Dashboard personalizado
+├── Reportes de ingresos
+└── Gestión de empleados
+
+empleados/      - Personal por hospedaje
+├── Roles específicos (Recepcionista, Gerente)
+├── Permisos granulares
+├── Horarios y turnos
+├── Acceso multi-hospedaje
+└── Auditoría de acciones
+
+consultas/      - Sistema de tickets/soporte
+├── Consultas categorizadas
+├── Sistema de respuestas
+├── Estados de seguimiento
+├── Escalación automática
+└── Métricas de satisfacción
+
+opiniones/      - Reviews y calificaciones
+├── Sistema de estrellas (1-5)
+├── Reviews detalladas
+├── Validación de huéspedes reales
+├── Respuestas de propietarios
+├── Moderación automática
+└── Analytics de satisfacción
+```
+
+#### 🔔 **Sistema de Comunicaciones**
+```
+notificaciones/ - Notificaciones en tiempo real
+├── WebSocket para tiempo real
+├── Firebase Cloud Messaging
+├── Tipos de notificación (14 tipos)
+├── Preferencias de usuario
+├── Historial completo
+└── Métricas de entrega
+
+mail/           - Sistema de email profesional
+├── 8 plantillas Handlebars
+├── Email transaccional
+├── Confirmaciones de reserva
+├── Recordatorios automáticos
+├── Reseteo de contraseñas
+├── Notificaciones de pago
+└── Reviews post-estadía
+
+chatbot/        - Integración con IA
+├── Configuración por hospedaje
+├── Subida de PDFs personalizados
+├── Tonos de conversación (5 estilos)
+├── Entrenamiento automático
+└── Métricas de uso
+```
+
+#### 📊 **Business Intelligence**
+```
+reportes/       - Sistema BI completo
+├── Vistas materializadas optimizadas
+├── KPIs de ocupación en tiempo real
+├── Ingresos mensuales/anuales
+├── Análisis de competencia
+├── Reportes personalizables
+├── Exportación a Excel/PDF
+├── Tareas programadas (cron)
+└── Cache inteligente
+
+uploads/        - Gestión multimedia
+├── Imágenes optimizadas (Cloudinary)
+├── Documentos seguros
+├── Validación de tipos MIME
+├── Redimensionado automático
+├── CDN global
+└── Backup automático
+
+qr-code/        - Códigos QR seguros
+├── Generación con JWT
+├── Validación con timestamp
+├── Check-in contactless
+├── Integración con Cloudinary
+└── Auditoría de escaneos
+```
+
+---
+
+## 🛠️ Instalación y Configuración
+
+### **Prerrequisitos**
+- **Node.js** 18.0+ y npm/yarn
+- **PostgreSQL** 13+ con extensiones
+- **Redis** (opcional, para cache)
+- **Cloudinary** account para multimedia
+
+### **1. Configuración Inicial**
 ```bash
 # Clonar el repositorio
-$ git clone <url-del-repositorio>
-$ cd backend
+git clone <repository-url>
+cd backendStayCumbrecita
 
 # Instalar dependencias
-$ npm install
+npm install
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus credenciales
 ```
 
-### Variables de Entorno
-
-Crear un archivo `.env` en la raíz del proyecto:
-
+### **2. Base de Datos**
 ```bash
-# Base de datos PostgreSQL
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=tu_usuario
-DB_PASSWORD=tu_contraseña
-DB_DATABASE=stay_at_cumbrecita
+# Crear base de datos PostgreSQL
+createdb StayAtCumbrecita
 
-# JWT
-JWT_SECRET=tu_jwt_secret_muy_seguro
-JWT_EXPIRES_IN=24h
-
-# Cloudinary (para imágenes)
-CLOUDINARY_CLOUD_NAME=tu_cloud_name
-CLOUDINARY_API_KEY=tu_api_key
-CLOUDINARY_API_SECRET=tu_api_secret
-
-# Email (Nodemailer)
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USER=tu_email@gmail.com
-MAIL_PASS=tu_contraseña_de_app
-
-# Firebase Cloud Messaging (notificaciones push)
-FIREBASE_PROJECT_ID=tu_project_id
-FIREBASE_CLIENT_EMAIL=tu_client_email
-FIREBASE_PRIVATE_KEY=tu_private_key
+# Las tablas se crean automáticamente con TypeORM
+# synchronize: true (solo desarrollo)
 ```
 
-## 🛠️ Comandos de Desarrollo
+### **3. Variables de Entorno Críticas**
+```env
+# Servidor
+PORT=5001
+HOST=Host
 
+# Base de datos
+DB_HOST=db_host
+DB_PORT=db_porte
+DB_USERNAME=Db_username
+DB_PASSWORD=Db_password
+DB_DATABASE=db_database
+
+# Seguridad (CAMBIAR EN PRODUCCIÓN)
+ENCRYPTION_KEY=Your_Key
+ENCRYPTION_IV=Your_Key
+SALT_ROUNDS=10
+SECRET_PEPPER=Your_Key
+JWT_SECRET=Your_Key
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# Firebase (opcional)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY=your-private-key
+FIREBASE_CLIENT_EMAIL=your-client-email
+```
+
+### **4. Ejecución**
 ```bash
-# Desarrollo (watch mode)
-$ npm run start:dev
+# Desarrollo con hot reload
+npm run start:dev
 
 # Producción
-$ npm run start:prod
+npm run build
+npm run start:prod
 
-# Compilar proyecto
-$ npm run build
-
-# Modo desarrollo simple
-$ npm run start
+# Docker
+docker-compose up --build
 ```
 
-## 🧪 Ejecutar Tests
+---
 
-```bash
-# Tests unitarios
-$ npm run test
+## 📚 Documentación API
 
-# Tests end-to-end
-$ npm run test:e2e
+### **Swagger/OpenAPI**
+- **Desarrollo**: http://localhost:5001/api
+- **Documentación interactiva** con todos los endpoints
+- **Schemas** y modelos documentados
+- **Ejemplos** de requests/responses
 
-# Cobertura de tests
-$ npm run test:cov
+### **Endpoints Principales**
 
-# Tests en modo watch
-$ npm run test:watch
+#### **🔐 Autenticación**
+```
+POST   /auth/register          - Registro de usuarios
+POST   /auth/login             - Login con JWT
+POST   /auth/refresh           - Refresh token
+POST   /auth/forgot-password   - Reseteo de contraseña
+GET    /auth/verify-email      - Verificación de email
 ```
 
-## 📁 Estructura del Proyecto
+#### **🏨 Hospedajes**
+```
+GET    /hospedajes             - Listar con filtros avanzados
+GET    /hospedajes/destacados  - Hospedajes con publicidad
+GET    /hospedajes/:id         - Detalle completo
+POST   /hospedajes             - Crear hospedaje
+PUT    /hospedajes/:id         - Actualizar
+DELETE /hospedajes/:id         - Eliminar
+```
 
+#### **🛏️ Habitaciones**
+```
+GET    /habitaciones/disponibilidad  - Consultar disponibilidad
+GET    /habitaciones/precios         - Obtener precios
+POST   /habitaciones/precios/ajustar - Ajustar precios dinámicos
+GET    /habitaciones/:id/servicios   - Servicios por habitación
+```
+
+#### **💳 Reservas y Pagos**
+```
+POST   /reservas/cotizar       - Cotizar reserva
+POST   /reservas               - Crear reserva
+GET    /reservas/mis-reservas  - Reservas del usuario
+POST   /pagos                  - Procesar pago
+PUT    /pagos/:id/estado       - Cambiar estado
+```
+
+#### **📊 Reportes**
+```
+GET    /reportes/kpis          - KPIs principales
+GET    /reportes/ocupacion     - Métricas de ocupación
+GET    /reportes/ingresos      - Reportes financieros
+POST   /reportes/export        - Exportar reportes
+```
+
+---
+
+## 🏗️ Arquitectura Técnica
+
+### **Patterns Implementados**
+- **Repository Pattern** para acceso a datos
+- **DTO Pattern** para validación y transferencia
+- **Guard Pattern** para autorización
+- **Interceptor Pattern** para logging y transformación
+- **Strategy Pattern** para diferentes tipos de pago
+- **Observer Pattern** para notificaciones
+
+### **Estructura de Directorios**
 ```
 src/
-├── auth/                 # Autenticación JWT y gestión de usuarios
-├── usuarios/             # Gestión de usuarios del sistema
-├── roles/                # Sistema de roles y permisos
-├── hospedajes/           # Gestión de establecimientos hoteleros
-├── habitaciones/         # Gestión de habitaciones y disponibilidad
-├── reservas/             # Sistema de reservas y check-in/out
-├── pagos/                # Procesamiento de pagos y historial
-├── empleados/            # Gestión de personal hotelero
-├── servicios/            # Servicios adicionales (spa, wifi, etc.)
-├── publicidad/           # Sistema de promoción de hospedajes
-├── opiniones/            # Reseñas y calificaciones
-├── reportes/             # Business Intelligence y analytics
-├── notificaciones/       # Notificaciones en tiempo real
-├── mail/                 # Sistema de correo electrónico
-├── uploads/              # Gestión de archivos multimedia
-├── common/               # Utilidades compartidas
-│   ├── enums/           # Enumeraciones del sistema
-│   ├── decorators/      # Decoradores personalizados
-│   └── guards/          # Guards de autenticación
-└── app.module.ts         # Módulo principal de la aplicación
+├── auth/                 # Autenticación y autorización
+│   ├── guards/          # Guards de protección
+│   ├── jwt/             # Estrategias JWT
+│   └── interceptors/    # Interceptors de auth
+├── common/              # Utilidades compartidas
+│   ├── decorators/      # Decorators personalizados
+│   ├── enums/           # Enumeraciones
+│   ├── pipes/           # Pipes de validación
+│   └── transformers/    # Transformadores de datos
+├── [modulo]/            # Cada módulo de negocio
+│   ├── dto/             # Data Transfer Objects
+│   ├── entidades/       # Entidades TypeORM
+│   ├── [modulo].controller.ts
+│   ├── [modulo].service.ts
+│   └── [modulo].module.ts
+└── main.ts              # Bootstrap de la aplicación
 ```
 
-## 🔐 Sistema de Roles
-
-| Rol | Descripción | Permisos |
-|-----|-------------|----------|
-| **SUPER_ADMIN** | Administrador del sistema | Acceso total |
-| **PROPIETARIO** | Dueño de hospedaje | Gestión de sus hospedajes |
-| **ADMIN** | Administrador de hotel | Gestión del hotel asignado |
-| **EMPLEADO** | Empleado de hotel | Operaciones básicas |
-| **TURISTA** | Cliente/huésped | Reservas y consultas |
-
-## 📊 Módulo de Reportes
-
-El sistema incluye un **módulo completo de Business Intelligence** con:
-
-- 📈 **KPIs ejecutivos** (ingresos, ocupación, clientes únicos)
-- 📅 **Análisis temporal** (mensual, estacional)
-- 🏆 **Rankings** (habitaciones top, mejores meses)
-- 🌍 **Segmentación** (por origen, tipo de habitación)
-- 📤 **Exportación** (CSV, Excel)
-- ⚡ **Optimización** (vistas materializadas, caché)
-
-### Endpoints de Reportes
-
-```bash
-GET /api/reports/kpis                    # KPIs principales
-GET /api/reports/reservations/by-month   # Reservas mensuales
-GET /api/reports/revenue/by-month        # Ingresos mensuales
-GET /api/reports/occupancy/by-hotel      # Ocupación por hotel
-GET /api/reports/export                  # Exportar a CSV/XLSX
+### **Base de Datos - Entidades Principales**
+```sql
+-- 25+ tablas principales
+User, Role, Permission, UserRole, RolePermission
+Hospedaje, Habitacion, TipoHospedaje, TipoHabitacion
+Reserva, ReservaLinea, HuespedReserva, Acompaniante
+Pago, Tarjeta, HistorialEstadoPago
+Servicio, HospedajeServicio, HabitacionServicio
+Opinion, Consulta, RespuestaConsulta
+Notificacion, Empleado, Owner
+Publicidad, ChatbotDocument
 ```
 
-## 🔔 Notificaciones en Tiempo Real
+---
 
-- **WebSocket Gateway** para notificaciones instantáneas
-- **Firebase Cloud Messaging** para notificaciones push
-- **Sistema de email** con plantillas profesionales
-- **Notificaciones por eventos**: reservas, pagos, opiniones
+## 🚀 Características Avanzadas
 
-## 💳 Sistema de Pagos
+### **🔄 Sistema de Estados**
+```typescript
+// Estados de Reserva (8 estados)
+enum EstadoReserva {
+  CREADA = 'CREADA',
+  PENDIENTE_PAGO = 'PENDIENTE_PAGO', 
+  CONFIRMADA = 'CONFIRMADA',
+  CHECK_IN = 'CHECK_IN',
+  CHECK_OUT = 'CHECK_OUT',
+  CANCELADA = 'CANCELADA',
+  NO_SHOW = 'NO_SHOW',
+  REEMBOLSADA = 'REEMBOLSADA'
+}
 
-- **Procesamiento seguro** de tarjetas de crédito/débito
-- **Historial completo** de transacciones
-- **Estados de pago** con seguimiento
-- **Integración** con el sistema de reservas
-- **Renovación automática** para publicidad
-
-## 📱 API Documentation
-
-La API está completamente documentada con **Swagger UI**:
-
-```bash
-# Una vez iniciado el servidor, visitar:
-http://localhost:3000/api/docs
+// Estados de Pago (4 estados)
+enum EstadoPago {
+  PENDIENTE = 'PENDIENTE',
+  PROCESANDO = 'PROCESANDO',
+  APROBADO = 'APROBADO',
+  RECHAZADO = 'RECHAZADO'
+}
 ```
 
-### Endpoints Principales
-
-```bash
-# Autenticación
-POST /api/auth/login           # Iniciar sesión
-POST /api/auth/register        # Registrar usuario
-
-# Hospedajes
-GET  /api/hospedajes           # Listar hospedajes
-POST /api/hospedajes           # Crear hospedaje
-GET  /api/hospedajes/:id       # Obtener hospedaje
-
-# Reservas
-POST /api/reservas             # Crear reserva
-GET  /api/reservas/:id         # Obtener reserva
-PATCH /api/reservas/:id/estado # Actualizar estado
-
-# Reportes
-GET  /api/reports/kpis         # KPIs del dashboard
-GET  /api/reports/export       # Exportar reportes
+### **🧠 Motor de Disponibilidad**
+```typescript
+// Algoritmo complejo de verificación
+- Validación de solapamiento temporal
+- Múltiples habitaciones del mismo tipo
+- Estados de limpieza y mantenimiento
+- Bloqueos manuales por fecha
+- Reservas en proceso
+- Conflictos de check-in/check-out
 ```
 
-## 🐳 Deployment
-
-### Docker (Recomendado)
-
-```bash
-# Construir imagen
-$ docker build -t stay-at-cumbrecita-backend .
-
-# Ejecutar contenedor
-$ docker run -p 3000:3000 stay-at-cumbrecita-backend
+### **💰 Precios Dinámicos**
+```typescript
+// Sistema de ajustes automáticos
+- Precios base por tipo de habitación
+- Ajustes por temporada alta/baja
+- Factores de ocupación
+- Eventos especiales
+- Competencia en la zona
+- Historial de demanda
 ```
 
-### Producción Tradicional
-
-```bash
-# Compilar proyecto
-$ npm run build
-
-# Ejecutar en producción
-$ npm run start:prod
+### **🔔 Notificaciones (14 Tipos)**
+```typescript
+enum TipoNotificacion {
+  NUEVA_RESERVA = 'NUEVA_RESERVA',
+  PAGO_APROBADO = 'PAGO_APROBADO',
+  PAGO_RECHAZADO = 'PAGO_RECHAZADO',
+  RESERVA_CANCELADA = 'RESERVA_CANCELADA',
+  CHECK_IN_RECORDATORIO = 'CHECK_IN_RECORDATORIO',
+  NUEVA_OPINION = 'NUEVA_OPINION',
+  CONSULTA_RECIBIDA = 'CONSULTA_RECIBIDA',
+  PUBLICIDAD_EXPIRADA = 'PUBLICIDAD_EXPIRADA',
+  // ... y 6 tipos más
+}
 ```
 
-## 🔧 Configuraciones Adicionales
+---
 
-### Base de Datos
+## 📈 Performance y Escalabilidad
 
-El proyecto usa **PostgreSQL** con **TypeORM**. Las migraciones se ejecutan automáticamente en desarrollo.
+### **Optimizaciones Implementadas**
+- **Vistas materializadas** para reportes complejos
+- **Índices compuestos** en consultas frecuentes
+- **Paginación** en todos los listados
+- **Cache Redis** para datos estáticos
+- **Lazy loading** en relaciones TypeORM
+- **Query optimization** con QueryBuilder
 
-```bash
-# Generar migración
-$ npm run migration:generate -- -n NombreMigracion
-
-# Ejecutar migraciones
-$ npm run migration:run
-
-# Revertir migración
-$ npm run migration:revert
+### **Tareas Programadas**
+```typescript
+// Cron jobs automatizados
+@Cron('0 0 * * *')  // Diario
+async refreshViews() {
+  // Actualizar vistas materializadas
+  // Limpiar cache obsoleto
+  // Generar estadísticas
+  // Cleanup de datos antiguos
+}
 ```
 
-### Tareas Programadas
+### **Métricas y Monitoreo**
+- **Health checks** automatizados
+- **Logging estructurado** con Winston
+- **Métricas de performance**
+- **Error tracking** y alertas
+- **Database monitoring**
 
-El sistema incluye **tareas cron** automáticas:
+---
 
-- ⏰ **Cada 5 minutos**: Actualización de vistas de reportes
-- ⏰ **Cada hora**: Estadísticas pre-calculadas
-- ⏰ **Diario (3 AM)**: Limpieza de datos antiguos
-- ⏰ **Mensual**: Renovación automática de publicidad
+### **Herramientas de Calidad**
+- **ESLint** para code quality
+- **Prettier** para formateo
+- **Husky** para git hooks
+- **Jest** para testing
+- **SonarQube** para análisis estático
 
-## 🐛 Debugging
+---
 
-```bash
-# Modo debug
-$ npm run start:debug
+## 🔒 Seguridad
 
-# Ver logs detallados
-$ DEBUG=* npm run start:dev
+### **Medidas Implementadas**
+- **Encriptación AES-256** para datos sensibles
+- **Hashing bcrypt** para contraseñas
+- **JWT con refresh tokens** seguros
+- **Rate limiting** anti-brute force
+- **Validation pipes** exhaustivos
+- **CORS** configurado correctamente
+- **Helmet** para headers de seguridad
+
+### **Cumplimiento**
+- **GDPR** compliant
+- **PCI-DSS** para pagos
+- **OWASP** top 10 covered
+- **Data encryption** at rest y in transit
+
+---
+
+## 📦 Deployment
+
+### **Docker Support**
+```dockerfile
+# Multi-stage build optimizado
+FROM node:18-alpine AS builder
+# ... build process
+
+FROM node:18-alpine AS production  
+# ... production image
 ```
 
-## 📚 Recursos Útiles
+### **Environment Configs**
+- **Development**: Hot reload + debugging
+- **Staging**: Similar a producción
+- **Production**: Optimizado + monitoring
 
-- **[Documentación de NestJS](https://docs.nestjs.com)** - Framework principal
-- **[TypeORM Docs](https://typeorm.io/)** - ORM para base de datos
-- **[Swagger UI](http://localhost:3000/api/docs)** - Documentación de API
-- **[Cloudinary Docs](https://cloudinary.com/documentation)** - Gestión de imágenes
+### **CI/CD Pipeline**
+```yaml
+# GitHub Actions / GitLab CI
+- Lint y Tests
+- Build Docker image
+- Security scanning
+- Deploy to staging
+- Smoke tests
+- Deploy to production
+```
 
-## 🤝 Contribuir
+---
 
-1. **Fork** del proyecto
-2. Crear **feature branch** (`git checkout -b feature/nueva-funcionalidad`)
-3. **Commit** de cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. **Push** al branch (`git push origin feature/nueva-funcionalidad`)
-5. Crear **Pull Request**
+## 🤝 Contribución
 
-### Estándares de Código
+### **Desarrollo**
+1. Fork del repositorio
+2. Feature branch: `git checkout -b feature/nueva-funcionalidad`
+3. Commit: `git commit -m 'feat: agregar nueva funcionalidad'`
+4. Push: `git push origin feature/nueva-funcionalidad`
+5. Pull Request con descripción detallada
 
-- **ESLint** y **Prettier** configurados
-- **Convenciones de naming** consistentes
-- **Documentación** de métodos complejos
-- **Tests unitarios** para nueva funcionalidad
+### **Coding Standards**
+- **TypeScript** strict mode
+- **ESLint** + **Prettier** obligatorios
+- **Conventional Commits** para mensajes
+- **Tests** obligatorios para nuevas features
+- **Documentation** actualizada
 
-## 📄 Licencia
-
-Este proyecto está bajo la licencia **MIT**. Ver el archivo [LICENSE](LICENSE) para más detalles.
-
-## 👥 Equipo de Desarrollo
-
-- **Desarrollador Principal**: Franco José Jara
-- **Arquitectura**: NestJS + TypeScript + PostgreSQL
-- **Infraestructura**: Docker + Node.js
+---
 
 ## 📞 Soporte
 
-Para preguntas o soporte técnico:
+### **Documentación Adicional**
+- [API Documentation](http://localhost:5001/api) - Swagger interactivo
+- [Database Schema](./docs/database.md) - Esquema completo
+- [Architecture Decision Records](./docs/adr/) - Decisiones técnicas
 
-- 📧 **Email**: soporte@stayatcumbrecita.com
-- 💬 **Discord**: [Canal del proyecto](#)
-- 📞 **Teléfono**: +54 (xxx) xxx-xxxx
+### **Contacto**
+- **Equipo de Desarrollo**: dev@stayatcumbrecita.com
+- **Issues**: GitHub Issues del repositorio
+- **Wiki**: Documentación técnica completa
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia [MIT](LICENSE) - ver el archivo LICENSE para más detalles.
 
 ---
 
 <p align="center">
-  <strong>Stay at Cumbrecita Backend</strong><br>
-  <em>Desarrollado con ❤️ usando NestJS</em>
+  <strong>🏨 Stay at Cumbrecita Backend - Arquitectura Enterprise para Turismo Digital</strong>
 </p>
