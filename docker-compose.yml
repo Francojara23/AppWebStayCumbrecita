@@ -1,0 +1,231 @@
+services:
+  # ================================
+  # BASE DE DATOS POSTGRESQL (COMENTADO - USANDO PostgreSQL LOCAL)
+  # ================================
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: staycumbrecita-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: StayAtCumbrecita
+  #     POSTGRES_USER: adminCumbrecita
+  #     POSTGRES_PASSWORD: 123456
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./backend/sql:/docker-entrypoint-initdb.d
+  #   networks:
+  #     - app-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ================================
+  # BACKEND NESTJS
+  # ================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: staycumbrecita-backend
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Configuración específica para Docker
+      NODE_ENV: production
+      PORT: 5001
+      HOST: 0.0.0.0
+      
+      # Base de datos (override para Docker) - Conectar a PostgreSQL local
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      DB_USERNAME: adminCumbrecita
+      DB_PASSWORD: 123456
+      DB_DATABASE: StayAtCumbrecita
+      
+      # Encriptación y seguridad
+      ENCRYPTION_KEY: e1db7451791523f747e56420819059db96936f88aefd5bc5e6127b6ee36ce966
+      ENCRYPTION_IV: cdda4a1d5dc8108321bafc1321155647
+      SALT_ROUNDS: 8
+      SECRET_PEPPER: 9189739aa1480bac48969e3e2bc86744
+      
+      # Cloudinary
+      CLOUDINARY_CLOUD_NAME: dgd1qsict
+      CLOUDINARY_API_KEY: 312842664577487
+      CLOUDINARY_API_SECRET: 4ks_8BgEZv9RminxyRb4n11fydo
+      
+      # Gmail
+      GMAIL_HOST: smtp.gmail.com
+      GMAIL_PORT: 587
+      GMAIL_USER: testcumbrecita@gmail.com
+      GMAIL_PASS: oyxnukaypbqlkwmd
+      GMAIL_SECURE: false
+      GMAIL_FROM: testcumbrecita@gmail.com
+      
+      # URLs para Docker
+      APP_NAME: Stay At Cumbrecita
+      APP_BACKEND_URL: http://backend:5001
+      APP_FRONTEND_URL: http://frontend:3000
+      
+      # CORS para Docker
+      FRONTEND_URL: http://frontend:3000
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://frontend:3000
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ================================
+  # FRONTEND NEXTJS
+  # ================================
+  frontend:
+    build:
+      context: ./frontendStayAtCumbrecita
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        - NEXT_PUBLIC_MAPS_API_GOOGLE_KEY=${NEXT_PUBLIC_MAPS_API_GOOGLE_KEY}
+    container_name: staycumbrecita-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontendStayAtCumbrecita/.env.local
+    environment:
+      # Configuración específica para Docker
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_TELEMETRY_DISABLED: 1
+      
+      # API URLs (override para Docker)
+      NEXT_PUBLIC_API_URL: http://localhost:5001
+      NEXT_PUBLIC_FRONTEND_URL: http://localhost:3000
+      
+      # URL interna para SSR (comunicación entre contenedores)
+      INTERNAL_API_URL: http://backend:5001
+      
+      # Google Maps API Key
+      NEXT_PUBLIC_MAPS_API_GOOGLE_KEY: AIzaSyBlzl53EznHxN3N5-FRJb3tlAARdOXAAWo
+
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ================================
+  # CHATBOT PYTHON/FASTAPI
+  # ================================
+  chatbot:
+    build:
+      context: ./stay-chatbot
+      dockerfile: Dockerfile
+    container_name: staycumbrecita-chatbot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Base de datos - variables individuales como espera config.py
+      - DB_HOST=host.docker.internal
+      - DB_PORT=5432
+      - DB_USERNAME=adminCumbrecita
+      - DB_PASSWORD=123456
+      - DB_DATABASE=StayAtCumbrecita
+      
+      # Credenciales de encriptación (mismas del backend)
+      - ENCRYPTION_KEY=e1db7451791523f747e56420819059db96936f88aefd5bc5e6127b6ee36ce966
+      - ENCRYPTION_IV=cdda4a1d5dc8108321bafc1321155647
+      - SALT_ROUNDS=8
+      - SECRET_PEPPER=9189739aa1480bac48969e3e2bc86744
+      
+      # OpenAI API - IMPORTANTE: configura tu API key real
+      - OPENAI_API_KEY=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
+      
+      # Backend API
+      - BACKEND_URL=http://backend:5001
+      
+      # Configuración del chatbot
+      - ENVIRONMENT=production
+      - EMBEDDING_MODEL=text-embedding-3-small
+      - MAX_TOKENS=500
+      - TEMPERATURE=0.3
+      - MAX_CONTEXT_LENGTH=4000
+    volumes:
+      - chatbot_uploads:/app/uploads
+    networks:
+      - app-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+
+
+  # ================================
+  # REDIS (OPCIONAL - Para cache)
+  # ================================
+  redis:
+    image: redis:7-alpine
+    container_name: staycumbrecita-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+# ================================
+# VOLUMES
+# ================================
+volumes:
+  # postgres_data:
+  #   driver: local
+  backend_uploads:
+    driver: local
+  backend_logs:
+    driver: local
+  chatbot_uploads:
+    driver: local
+  redis_data:
+    driver: local
+
+# ================================
+# NETWORKS
+# ================================
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

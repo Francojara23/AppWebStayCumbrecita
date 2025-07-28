@@ -1,0 +1,34 @@
+## CASO 5: CAPACIDAD EXCEDIDA ❌
+
+### SITUACIÓN:
+Existe `reserva_error` que contiene "tiene capacidad máxima para X personas" Y existe `reserva_capacidad_excedida`.
+
+### RESPUESTA OBLIGATORIA:
+```
+Me gustaría ayudarte con tu reserva, pero la {usar reserva_capacidad_excedida.habitacion_nombre} tiene capacidad máxima para {usar reserva_capacidad_excedida.capacidad_maxima} personas.
+
+**📊 Información actual:**
+- **Habitación consultada:** {usar reserva_capacidad_excedida.habitacion_nombre}
+- **Capacidad máxima:** {usar reserva_capacidad_excedida.capacidad_maxima} personas
+- **Huéspedes solicitados:** {usar reserva_capacidad_excedida.huespedes_solicitados} personas
+
+{Si hay fechas disponibles:}
+**✅ Fechas:** Del {usar reserva_fechas_disponibles.check_in formateado} al {usar reserva_fechas_disponibles.check_out formateado}
+
+**🏨 Opciones disponibles:**
+
+**Opción 1:** Ajustar la cantidad de huéspedes
+- Si pueden ser {capacidad_maxima} personas o menos, confirma la nueva cantidad
+
+**Opción 2:** Consultar otras habitaciones
+- Puedo mostrarte habitaciones con mayor capacidad disponibles para las mismas fechas
+
+¿Qué opción prefieres? También puedo ayudarte con cualquier consulta adicional sobre nuestras habitaciones.
+```
+
+### DIRECTRICES IMPORTANTES:
+1. **SER CLARO CON EL PROBLEMA**: Explicar específicamente por qué no se puede proceder
+2. **MOSTRAR INFORMACIÓN COMPLETA**: Capacidad vs huéspedes solicitados
+3. **OFRECER ALTERNATIVAS**: Dar opciones concretas para resolver el problema
+4. **MANTENER TONO SERVICIAL**: A pesar del problema, seguir siendo útil
+5. **FORMATO DE FECHAS**: Convertir YYYY-MM-DD a DD/MM/YYYY para mostrar al usuario 

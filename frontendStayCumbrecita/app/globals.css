@@ -1,0 +1,226 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 24 94% 34%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 24 94% 34%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Estilos simplificados para react-day-picker */
+@layer components {
+  .rdp {
+    --rdp-accent-color: rgb(234 88 12); /* orange-600 */
+    --rdp-background-color: rgb(255 255 255);
+  }
+
+  .rdp-day_selected,
+  .rdp-day_selected:focus-visible,
+  .rdp-day_selected:hover {
+    background-color: var(--rdp-accent-color) !important;
+    color: white !important;
+  }
+
+  .rdp-day_today:not(.rdp-day_outside) {
+    font-weight: 600;
+  }
+
+  /* Estilos específicos para los dropdowns */
+  .rdp-caption_dropdowns select {
+    background: transparent;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .rdp-caption_dropdowns select:hover {
+    background: hsl(var(--accent));
+  }
+
+  .rdp-caption_dropdowns select:focus {
+    outline: 2px solid var(--rdp-accent-color);
+    outline-offset: 2px;
+  }
+}
+
+/* React Day Picker specific styles */
+.rdp {
+  margin: 0;
+}
+
+/* Estilos para fechas deshabilitadas */
+.rdp-day_disabled {
+  color: rgb(156 163 175) !important; /* text-gray-400 */
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background-color: transparent !important;
+}
+
+.rdp-day_disabled:hover {
+  background-color: transparent !important;
+  color: rgb(156 163 175) !important;
+}
+
+.rdp-button[disabled] {
+  color: rgb(156 163 175) !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background-color: transparent !important;
+}
+
+.rdp-button[disabled]:hover {
+  background-color: transparent !important;
+  color: rgb(156 163 175) !important;
+}
+
+/* Estilos adicionales para asegurar que las fechas deshabilitadas se vean correctamente */
+[data-disabled="true"] {
+  color: rgb(156 163 175) !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+.rdp-day[aria-disabled="true"] {
+  color: rgb(156 163 175) !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background-color: transparent !important;
+}
+
+.rdp-day[aria-disabled="true"]:hover {
+  background-color: transparent !important;
+  color: rgb(156 163 175) !important;
+}
+
+.rdp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rdp-head_row,
+.rdp-row,
+.rdp-weekdays {
+  display: flex;
+  width: 100%;
+}
+
+.rdp-head_cell,
+.rdp-weekday {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0;
+  width: auto !important;
+  min-width: 2rem;
+  max-width: none;
+}
+
+.rdp-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  min-width: 2rem;
+}
+
+.rdp-day {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Ensure proper spacing and alignment */
+.rdp-month {
+  width: 100%;
+}
+
+.rdp-weeks {
+  width: 100%;
+}
+
+/* Fix for weekday headers specifically */
+.rdp-weekday {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: rgb(107 114 128); /* text-muted-foreground equivalent */
+}

@@ -1,0 +1,24 @@
+🔍 REGLAS PARA CONSULTAS DE SERVICIOS - DEPRECATED
+
+⚠️ ESTE ARCHIVO ESTÁ DEPRECADO ⚠️
+Los servicios ahora se manejan con archivos específicos:
+• hospedaje_services_rules.txt - Para servicios del hospedaje
+• habitacion_services_rules.txt - Para servicios de habitaciones
+
+FALLBACK PARA CONSULTAS GENÉRICAS:
+Si no puedes determinar si preguntan por servicios del hospedaje o de habitación:
+
+"Te puedo ayudar con información sobre servicios. ¿Te interesa conocer:
+
+• **Servicios del hospedaje** (instalaciones comunes, comodidades generales)
+• **Servicios de la habitación** (comodidades privadas de cada habitación)
+
+¿Cuál te gustaría saber?"
+
+REGLAS BÁSICAS:
+• SIEMPRE usar información real del backend
+• NO inventar servicios
+• Derivar a consultas específicas para mejor información
+
+RESPUESTA NEGATIVA:
+Si no hay servicios similares: "Lo sentimos, ese servicio no está disponible en {nombre_hospedaje}. Sin embargo, podés consultar por otros servicios al {telefono_contacto}" 

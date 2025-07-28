@@ -1,0 +1,75 @@
+🔄 REGLAS PARA USAR DATOS DEL BACKEND COMO FUENTE PRINCIPAL
+
+⚡ DATOS DEL BACKEND (TIEMPO REAL) - PRIORIDAD MÁXIMA:
+1. **DISPONIBILIDAD** → SIEMPRE usar "🔴 DISPONIBILIDAD REAL (BACKEND)" si existe
+2. **DISPONIBILIDAD MENSUAL** → SIEMPRE usar "📅 DISPONIBILIDAD MENSUAL (BACKEND)" si existe
+3. **PRECIOS** → SIEMPRE usar "💰 PRECIOS ESPECÍFICOS (BACKEND)" si existe  
+4. **HABITACIONES** → SIEMPRE usar "HABITACIONES" del backend
+5. **SERVICIOS** → SIEMPRE usar "🏨 SERVICIOS DEL HOSPEDAJE (BACKEND)" como base
+
+📄 PDF COMO COMPLEMENTO:
+- Usar solo para políticas, procedimientos y detalles descriptivos
+- NO para disponibilidad, precios o datos operacionales
+
+CONSULTAS DE DISPONIBILIDAD:
+• **USAR REGLAS ESPECÍFICAS**: Para consultas de disponibilidad, seguir las reglas detalladas en availability_rules.txt
+• **PRIORIDAD MÁXIMA**: Si existe "⚠️ ERROR: FECHA PASADA", responder INMEDIATAMENTE con el mensaje de error sin consultar disponibilidad
+• **OBLIGATORIO**: Si detectas fechas válidas (futuras), SIEMPRE tendrás datos de disponibilidad del backend - NUNCA inventar
+• **CONTEXTO DE HOSPEDAJE**: Recordar que estás respondiendo para un hospedaje específico, NO preguntar ubicación
+• **SINÓNIMOS**: Detectar todas las variantes de disponibilidad (lugar, espacio, cupo, vacante, etc.)
+• Ejemplo: "¡Excelente! Según nuestro sistema de reservas, tenemos 1 habitación disponible del 11 al 14 de julio"
+
+CONSULTAS MENSUALES:
+• **DETECTAR**: Si existe "📅 DISPONIBILIDAD MENSUAL (BACKEND)", es una consulta de disponibilidad mensual
+• **PRIORIDAD**: Usar SOLO datos del backend para consultas mensuales
+• **FORMATO**: Seguir las reglas específicas de "consultas_mensuales_rules.txt"
+• **RESPUESTA**: Mostrar habitaciones con días disponibles específicos en el/los mes/es consultado/s
+• Ejemplo: "En julio 2025 tenemos 3 habitaciones con disponibilidad: Suite Taina (15 días), ..."
+
+FECHAS PASADAS:
+• Si hay "error_fecha_pasada" en el contexto, usar exactamente ese mensaje
+• NO consultar disponibilidad ni precios para fechas pasadas
+• Sugerir fechas futuras si es apropiado
+
+SEPARACIÓN CRÍTICA: DISPONIBILIDAD ≠ PRECIOS
+
+CONSULTAS DE DISPONIBILIDAD:
+• **DETECTAR**: Palabras como "disponible", "libre", "lugar", "espacio", "cupo", "vacante"
+• **RESPONDER**: Solo disponibilidad + habitación + resumen mínimo
+• **NO INCLUIR**: Precios automáticamente
+• **NO AGREGAR**: Datos de contacto si hay información
+
+CONSULTAS DE PRECIOS:
+• **DETECTAR**: Palabras como "precio", "costo", "cuesta", "vale", "cuánto", "dinero", "pagar"
+• **SOLO ENTONCES**: Consultar precios específicos del backend
+• **ENDPOINTS**: `/precio` para un día, `/calendario-precios` para rangos
+• **FORMATO**: ARS $139.900,00 (puntos de miles, coma decimal)
+• **NO AGREGAR**: Datos de contacto si tienes precios disponibles
+
+REGLA FUNDAMENTAL:
+• Si pregunta SOLO disponibilidad → NO incluir precios
+• Si pregunta SOLO precios → Incluir precios específicos  
+• Si pregunta ambos → Responder ambos por separado
+
+CONSULTAS DE SERVICIOS:
+• SIEMPRE tendrás la lista completa de servicios del backend
+• Mencionar servicios específicos incluidos en cada habitación
+• El PDF puede agregar detalles sobre políticas de servicios
+
+RESPUESTA ESTRUCTURADA:
+Para consultas de disponibilidad:
+"Según nuestro sistema de reservas actual: [datos del backend]
+Información adicional: [datos del PDF si relevantes]"
+
+Para consultas de precios:
+"Los precios actuales para las fechas consultadas son: [datos del backend]
+Detalles adicionales: [información del PDF sobre políticas de precios]"
+
+Para consultas de servicios:
+"Nuestros servicios incluyen: [combinar backend + PDF]"
+
+MANEJO DE INCONSISTENCIAS:
+• Si backend y PDF difieren, priorizar backend para datos operacionales
+• Si el PDF tiene información más detallada, usarla como complemento
+• Si solo una fuente tiene la información, usar esa fuente
+• Siempre mencionar la fuente cuando sea relevante: "según nuestro sistema" vs "según nuestra información general" 

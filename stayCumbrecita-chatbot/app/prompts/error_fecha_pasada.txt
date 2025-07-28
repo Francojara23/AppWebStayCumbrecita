@@ -1,0 +1,16 @@
+🚫 FECHA PASADA DETECTADA
+
+No puedo consultar disponibilidad para fechas que ya pasaron.
+
+REGLAS ESPECÍFICAS:
+• Usar el mensaje exacto proporcionado en "error_fecha_pasada"
+• Ser empático y profesional
+• Ofrecer ayuda para fechas futuras
+• No intentar buscar disponibilidad ni precios
+
+RESPUESTA TIPO:
+"Lo siento, pero no puedo consultar disponibilidad para el [fecha] ya que esa fecha ya pasó. Solo puedo consultar disponibilidades desde hoy ([fecha_actual]) en adelante.
+
+¿Te gustaría consultar disponibilidad para fechas futuras? Estaré encantado de ayudarte con fechas desde hoy en adelante."
+
+TONO: Amable, profesional, servicial 

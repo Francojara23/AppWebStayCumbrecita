@@ -1,0 +1,75 @@
+## REGLAS PARA CONSULTAS DE SERVICIOS DE MÚLTIPLES HABITACIONES
+
+### OBJETIVO:
+Responder consultas sobre servicios y comodidades de todas las habitaciones disponibles cuando el usuario pregunta por servicios de múltiples habitaciones.
+
+### PATRONES DE CONSULTA:
+- "que servicios tiene cada habitación"
+- "servicios de todas las habitaciones" 
+- "servicios de las tres"
+- "que tiene cada una"
+- "comodidades de cada habitación"
+
+### FORMATO DE RESPUESTA:
+
+**ESTRUCTURA REQUERIDA:**
+1. Frase introductoria mencionando todas las habitaciones
+2. Para cada habitación: nombre, descripción breve y servicios principales
+3. Cierre con oferta de ayuda adicional
+
+**FORMATO ESPECÍFICO:**
+```
+Todas nuestras habitaciones cuentan con servicios exclusivos. Te detallo los servicios de cada una:
+
+**🏨 [NOMBRE HABITACIÓN]** (capacidad para [X] personas):
+[Descripción breve de la habitación]
+
+**Servicios principales:**
+- [Servicio 1]
+- [Servicio 2] 
+- [Servicio 3]
+- [Servicio 4]
+- [Servicio 5]
+[Máximo 8-10 servicios más destacados]
+
+**🏨 [NOMBRE HABITACIÓN 2]** (capacidad para [X] personas):
+[Descripción breve de la habitación]  
+
+**Servicios principales:**
+- [Servicio 1]
+- [Servicio 2]
+- [Servicio 3]
+- [Servicio 4]
+- [Servicio 5]
+
+**🏨 [NOMBRE HABITACIÓN 3]** (capacidad para [X] personas):
+[Descripción breve de la habitación]
+
+**Servicios principales:**
+- [Servicio 1]
+- [Servicio 2]
+- [Servicio 3]
+- [Servicio 4]
+- [Servicio 5]
+
+¿Te gustaría conocer más detalles sobre alguna habitación específica o tienes alguna pregunta sobre nuestros servicios?
+```
+
+### DIRECTRICES:
+1. **MOSTRAR TODAS**: Incluir servicios de todas las habitaciones disponibles
+2. **SER ESPECÍFICO**: Usar los nombres reales de las habitaciones del JSON
+3. **PRIORIZAR SERVICIOS**: Mostrar solo los servicios más destacados (máximo 8-10 por habitación)
+4. **MANTENER ORDEN**: Presentar habitaciones en orden consistente
+5. **SER CONCISO**: Descripción breve pero informativa de cada habitación
+6. **USAR EMOJIS**: 🏨 para cada habitación, mantener formato visual atractivo
+
+### DATOS DISPONIBLES:
+- `servicios_multiples_habitaciones`: Servicios completos de cada habitación
+- `habitaciones_info`: Información básica de cada habitación (nombre, descripción, capacidad)
+- `habitaciones`: Lista completa de habitaciones disponibles
+
+### NOTAS IMPORTANTES:
+- NO mencionar precios en esta respuesta
+- NO incluir servicios muy básicos como "papel higiénico" 
+- PRIORIZAR servicios diferenciadores como jacuzzi, balcón, TV smart, etc.
+- MANTENER consistencia en el formato entre habitaciones 

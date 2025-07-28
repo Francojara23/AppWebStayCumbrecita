@@ -1,0 +1,95 @@
+:root {
+  /* Variables de color para el tema claro */
+  --white: #ffffff;
+  --dark: #333333;
+  --light: #eee9e1;
+  --primary: #CD6C22;
+  --primary-dark: #a75719;
+  --primary-light: #e08a4c;
+  --secondary: #5c493c;
+  --accent: #a75719;
+  --neutral: #9c989b;
+  --neutral-light: #bfbdbd;
+  --neutral-ultralight: #f7f4f0;
+  --card-bg: #f7f4f0;
+  --text-muted: #bfbdbd;
+  --text-sidebar: #cd6d22;
+
+  /* Variable container-bg */
+  --container-bg: var(--white);
+
+  /* Variables para componentes específicos */
+  --sidebar-background: var(--white);
+  --sidebar-foreground: var(--dark);
+  --sidebar-border: rgba(0, 0, 0, 0.12);
+  --sidebar-accent: var(--primary);
+  --sidebar-accent-foreground: var(--white);
+
+  /* Variables para estados */
+  --success: #22c55e;
+  --success-light: #dcfce7;
+  --success-foreground: var(--white);
+
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+  --warning-foreground: var(--white);
+
+  --error: #ef4444;
+  --error-light: #fee2e2;
+  --error-foreground: var(--white);
+
+  --info: #3b82f6;
+  --info-light: #dbeafe;
+  --info-foreground: var(--white);
+
+  /* Variables para tablas */
+  --table-header-bg: var(--neutral-ultralight);
+  --table-header-color: var(--secondary);
+  --table-row-bg: var(--white);
+  --table-row-hover-bg: var(--neutral-ultralight);
+  --table-border-color: rgba(0, 0, 0, 0.12);
+}
+
+.dark {
+  /* Variables de color para el tema oscuro */
+  --white: #ffffff;
+  --dark: #333333;
+  --light: #eee9e1;
+  --card-bg: #5c493c;
+  --text-muted: #d1d5db; /* gray-300 en Tailwind */
+  --text-sidebar: #ffffff;
+
+  /* Variable container-bg para modo oscuro */
+  --container-bg: var(--dark);
+
+  /* Variables para componentes específicos en modo oscuro */
+  --sidebar-background: var(--secondary);
+  --sidebar-foreground: var(--white);
+  --sidebar-border: rgba(0, 0, 0, 0.12);
+  --sidebar-accent: var(--primary);
+  --sidebar-accent-foreground: var(--white);
+
+  /* Variables para estados en modo oscuro */
+  --success: #22c55e;
+  --success-light: rgba(34, 197, 94, 0.2);
+  --success-foreground: var(--white);
+
+  --warning: #f59e0b;
+  --warning-light: rgba(245, 158, 11, 0.2);
+  --warning-foreground: var(--white);
+
+  --error: #ef4444;
+  --error-light: rgba(239, 68, 68, 0.2);
+  --error-foreground: var(--white);
+
+  --info: #3b82f6;
+  --info-light: rgba(59, 130, 246, 0.2);
+  --info-foreground: var(--white);
+
+  /* Variables para tablas en modo oscuro */
+  --table-header-bg: var(--secondary);
+  --table-header-color: var(--white);
+  --table-row-bg: var(--dark);
+  --table-row-hover-bg: var(--secondary);
+  --table-border-color: rgba(255, 255, 255, 0.12);
+}

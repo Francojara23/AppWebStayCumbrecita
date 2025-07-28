@@ -1,0 +1,353 @@
+# ===========================================
+# GITIGNORE PRINCIPAL - AppWebStayAtCumbrecita
+# ===========================================
+
+# Archivos del sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.tmp
+*.temp
+
+# ============================================
+# NODE.JS / NPM (Backend NestJS + Frontend Next.js)
+# ============================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Archivos de dependencias
+package-lock.json.bak  
+yarn.lock.bak
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# ============================================
+# ARCHIVOS DE ENTORNO Y CONFIGURACIÓN SENSIBLE
+# ============================================
+
+# Variables de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+
+# Archivos de configuración local
+config.local.js
+config.local.json
+
+# ============================================
+# NEXT.JS (Frontend)
+# ============================================
+
+# Next.js build output
+.next/
+out/
+
+# Production build
+build/
+dist/
+
+# Next.js cache
+.next/cache/
+
+# Vercel
+.vercel
+
+# Turborepo
+.turbo
+
+# ============================================
+# NESTJS (Backend)
+# ============================================
+
+# Build outputs
+dist/
+build/
+
+# ============================================
+# PYTHON (Chatbot)
+# ============================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# ============================================
+# BASE DE DATOS
+# ============================================
+
+# Archivos de base de datos local
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# PostgreSQL
+*.sql.bak
+pg_log/
+
+# MongoDB
+*.bson
+
+# ============================================
+# ARCHIVOS DE LOGS Y TEMPORALES
+# ============================================
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary folders
+tmp/
+temp/
+
+# ============================================
+# DOCKER
+# ============================================
+
+# Docker volumes
+docker-data/
+postgres-data/
+
+# ============================================
+# CLOUDINARY Y ARCHIVOS SUBIDOS
+# ============================================
+
+# Archivos subidos localmente (si los hay)
+uploads/
+/backendStayCumbrecita/uploads/*
+/stayCumbrecita-chatbot/uploads/*
+
+# ============================================
+# SECRETOS Y CERTIFICADOS
+# ============================================
+
+# Claves privadas
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Certificados SSL
+*.crt
+*.cer
+
+# Firebase Admin SDK (mantener solo el example)
+secrets/
+/backendStayCumbrecita/secrets/*.json
+
+# ============================================
+# IDE Y EDITORES
+# ============================================
+
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# OTROS ARCHIVOS ESPECÍFICOS
+# ============================================
+
+# Archivos de cache
+.cache/
+*.cache
+
+# Cookies y sesiones de testing
+cookies.txt
+
+# Archivos de pruebas locales
+test-*.js
+test-*.ts
+test-*.py
+
+# Archivos de benchmark
+benchmark/
+
+# Variables de entorno específicas por servicio
+/backendStayCumbrecita/.env
+/frontendStayCumbrecita/.env.local
+/stayCumbrecita-chatbot/.env 

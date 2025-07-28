@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{title}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { 
+            background-color: {{headerColor}}; 
+            color: white; 
+            padding: 20px; 
+            text-align: center; 
+        }
+        .content { margin: 20px 0; padding: 20px; background-color: #f9f9f9; border-radius: 4px; }
+        .footer { margin-top: 30px; font-size: 12px; color: #666; }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: {{buttonColor}};
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>{{title}}</h2>
+        </div>
+
+        <p>Hola {{name}},</p>
+        
+        <div class="content">
+            {{{content}}}
+        </div>
+
+        {{#if additionalInfo.incluirQr}}
+        <div class="content" style="text-align: center; background-color: #fff3cd; border: 2px solid #ea580c; margin: 20px 0;">
+            <h3 style="color: #ea580c; margin-bottom: 15px;">📱 Tu Código QR para Check-in</h3>
+            
+            {{#if additionalInfo.codigoQrUrl}}
+            <div style="margin: 15px 0;">
+                <img src="{{additionalInfo.codigoQrUrl}}" alt="Código QR para Check-in" style="max-width: 180px; height: auto; border: 1px solid #ddd; border-radius: 8px;">
+            </div>
+            {{/if}}
+            
+            <p style="color: #495057; font-size: 0.95em; margin: 10px 0; font-weight: bold;">
+                🏨 <strong>¡IMPORTANTE!</strong> Presenta este QR en la recepción el día de tu check-in
+            </p>
+        </div>
+        {{/if}}
+
+        {{#if actionUrl}}
+        <p>{{actionText}}</p>
+        <a href="{{actionUrl}}" class="button">{{actionButtonText}}</a>
+        {{/if}}
+
+        {{#if additionalInfo}}
+        <div class="content">
+            <h3 style="color: #ea580c; margin-bottom: 15px;">Detalles de la Reserva</h3>
+            {{#if additionalInfo.codigoReserva}}
+            <p><strong>Código de reserva:</strong> {{additionalInfo.codigoReserva}}</p>
+            {{/if}}
+            {{#if additionalInfo.nombreHospedaje}}
+            <p><strong>Hospedaje:</strong> {{additionalInfo.nombreHospedaje}}</p>
+            {{/if}}
+            {{#if additionalInfo.direccionHospedaje}}
+            <p><strong>Dirección:</strong> {{additionalInfo.direccionHospedaje}}</p>
+            {{/if}}
+            {{#if additionalInfo.nombreHabitacion}}
+            <p><strong>Habitación:</strong> {{additionalInfo.nombreHabitacion}}</p>
+            {{/if}}
+            {{#if additionalInfo.huespedes}}
+            <p><strong>Huéspedes:</strong> {{additionalInfo.huespedes}} adultos</p>
+            {{/if}}
+            {{#if additionalInfo.fechaCheckIn}}
+            <p><strong>Check-in:</strong> {{additionalInfo.fechaCheckIn}}<br>
+               <span style="color: #666; font-size: 0.9em;">A partir de las 15:00</span></p>
+            {{/if}}
+            {{#if additionalInfo.fechaCheckOut}}
+            <p><strong>Check-out:</strong> {{additionalInfo.fechaCheckOut}}<br>
+               <span style="color: #666; font-size: 0.9em;">Hasta las 11:00</span></p>
+            {{/if}}
+                    {{#if additionalInfo.cantidadNoches}}
+        <p><strong>Cantidad de noches:</strong> {{additionalInfo.cantidadNoches}}</p>
+        {{/if}}
+        {{#if additionalInfo.mensajeQr}}
+        <div style="background-color: #e3f2fd; border-left: 4px solid #1976d2; padding: 15px; margin: 15px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #1976d2; font-weight: bold;">{{additionalInfo.mensajeQr}}</p>
+        </div>
+        {{/if}}
+    </div>
+    {{/if}}
+
+        <div class="footer">
+            <p>{{footerText}}</p>
+            <p>© 2025 Stay At Cumbrecita. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+</html> 

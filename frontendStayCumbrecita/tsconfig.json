@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    /* ==== Objetivo y módulos ==== */
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+
+    /*
+      ⚠️  Clave para que los tipos globales no se dupliquen:
+      Use el modo de resolución clásico de Node en vez de "bundler".
+      Con "bundler" (TS 5) los .d.ts globales pueden cargarse dos veces
+      y el compilador intersecta las definiciones →  ̀never`.
+    */
+    "moduleResolution": "node",
+
+    /* ==== Estrictitud ==== */
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+
+    /* ==== Interoperabilidad ==== */
+    "allowJs": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "jsx": "preserve",
+
+    /* ==== Incre-multi-build ==== */
+    "incremental": true,
+
+    /* ==== Alias @/ ==== */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+
+    /* ==== Tipos globales adicionales ==== */
+    "types": [
+      "google.maps",
+      "node"
+    ],
+
+    /* ==== Plug-in oficial de Next para TS 5 ==== */
+    "plugins": [
+      { "name": "next" }
+    ]
+  },
+
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

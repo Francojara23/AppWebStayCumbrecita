@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Cancelación de Reserva</title>
+</head>
+<body>
+  <h2>Tu reserva ha sido cancelada</h2>
+  <p>Estimado(a), lamentamos informarte que tu reserva fue cancelada.</p>
+  <p>Detalles de la reserva:
+    <strong>ID:</strong> {{reserva.id}} |
+    <strong>Fecha de inicio:</strong> {{reserva.fechaInicio}} |
+    <strong>Fecha de fin:</strong> {{reserva.fechaFin}}
+  </p>
+  <p>Si tienes alguna duda o deseas reprogramar, puedes hacerlo en <a href="{{frontendUrl}}">nuestro sitio</a>.</p>
+</body>
+</html>

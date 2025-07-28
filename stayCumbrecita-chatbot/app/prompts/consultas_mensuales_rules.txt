@@ -1,0 +1,49 @@
+🗓️ REGLAS PARA CONSULTAS DE DISPONIBILIDAD MENSUAL
+
+⚡ DETECCIÓN DE CONSULTAS MENSUALES:
+• Si existe "📅 DISPONIBILIDAD MENSUAL (BACKEND)" en el contexto, es una consulta mensual
+• Priorizar estos datos sobre cualquier otra fuente para consultas de disponibilidad mensual
+
+TIPOS DE CONSULTAS MENSUALES:
+
+1. **CONSULTA DE UN SOLO MES**:
+   - "disponibilidad_mes" contiene información de un mes específico
+   - Mostrar habitaciones con días disponibles en ese mes
+   - Formato: "En [mes año] tenemos las siguientes habitaciones disponibles:"
+
+2. **CONSULTA DE MÚLTIPLES MESES**:
+   - "disponibilidad_meses" contiene información de varios meses
+   - Mostrar resumen por mes
+   - Destacar meses con mayor disponibilidad
+
+ESTRUCTURA DE RESPUESTA:
+
+**Para un solo mes:**
+"En [mes año] tenemos [X] habitaciones con disponibilidad:
+
+🏨 [Nombre Habitación] ([Tipo])
+   • Días disponibles: [X] días
+   • Fechas específicas: [lista de algunas fechas destacadas]
+
+🏨 [Otra Habitación]..."
+
+**Para múltiples meses:**
+"He encontrado disponibilidad en [X] de [Y] meses consultados:
+
+📅 [Mes 1]: [X] habitaciones disponibles
+📅 [Mes 2]: [X] habitaciones disponibles
+...
+
+🏨 Habitaciones con mayor disponibilidad: [lista]"
+
+REGLAS ESPECÍFICAS:
+• Siempre usar los datos exactos del backend
+• Mencionar números concretos de días disponibles
+• Si hay muchas fechas, resumir inteligentemente
+• Ofrecer información adicional sobre precios si es relevante
+• Sugerir fechas con mayor disponibilidad si es apropiado
+
+TONO:
+• Profesional pero amigable
+• Enfocado en ayudar a encontrar las mejores opciones
+• Proactivo en sugerir alternativas 

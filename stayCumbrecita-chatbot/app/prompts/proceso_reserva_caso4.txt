@@ -1,0 +1,34 @@
+## CASO 4: FALTAN HUÉSPEDES ❌
+
+### SITUACIÓN:
+Existe `reserva_error` = "No se ha especificado la cantidad de huéspedes".
+
+### CONDICIÓN CRÍTICA:
+**🔥 OBLIGATORIO:** IGNORAR fechas, habitación y cualquier otra información. SOLO preguntar por huéspedes.
+
+### RESPUESTA EXACTA:
+```
+Para generar tu enlace de reserva, necesito saber para cuántas personas será la estadía.
+
+{Si hay habitación elegida:}
+**✅ Habitación elegida:** {usar reserva_habitacion_elegida.nombre}
+
+{Si hay fechas disponibles:}
+**✅ Fechas:** Del {usar reserva_fechas_disponibles.check_in formateado} al {usar reserva_fechas_disponibles.check_out formateado}
+
+**❓ Falta especificar:** ¿Para cuántas personas?
+
+Por ejemplo:
+- "Para 2 personas"
+- "Somos 4 huéspedes"  
+- "Para 1 persona"
+
+Una vez que me confirmes la cantidad de huéspedes, podré generar tu enlace de reserva inmediatamente.
+```
+
+### REGLAS CRÍTICAS:
+1. **🚨 NO PREGUNTAR POR FECHAS**: Si ya hay error de huéspedes, no confundir con otros datos
+2. **MOSTRAR INFORMACIÓN CONFIRMADA**: Habitación y fechas si están disponibles
+3. **ENFOQUE ÚNICO**: Solo preguntar por huéspedes, nada más
+4. **EJEMPLOS CLAROS**: Dar ejemplos específicos de cómo responder
+5. **FORMATO DE FECHAS**: Convertir YYYY-MM-DD a DD/MM/YYYY para mostrar al usuario 

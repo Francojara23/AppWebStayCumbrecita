@@ -1,0 +1,48 @@
+## CASO 3: FALTAN FECHAS ❌
+
+### SITUACIÓN:
+Existe `reserva_error` = "No se han especificado fechas para la reserva" Y no hay fechas en el contexto conversacional.
+
+### LÓGICA CRÍTICA - CONTEXTO CONVERSACIONAL:
+**ANTES** de pedir fechas, verificar si hay fechas disponibles en:
+- `query_params.check_in` y `query_params.check_out` (fechas extraídas del contexto)
+- `query_params.single_date` (fecha única del contexto)
+- `query_params.inferred_from_frontend` = true (fechas del contexto del frontend)
+- `query_params.inferred_from_session` = true (fechas de mensajes anteriores)
+
+### SI HAY FECHAS EN EL CONTEXTO:
+```
+¡Perfecto! Veo que me consultaste disponibilidad/precios para {usar las fechas del contexto}. 
+
+{Si hay habitación elegida, mencionarla:}
+**✅ Habitación elegida:** {usar reserva_habitacion_elegida.nombre si está disponible}
+**✅ Fechas:** Del {query_params.check_in} al {query_params.check_out} {o query_params.single_date si es fecha única}
+
+Déjame generar tu enlace de reserva con esa información. Un momento...
+
+{Indicar que se necesita re-procesar con las fechas del contexto}
+🔄 **Nota para el sistema:** Usar fechas del contexto conversacional y re-generar reserva.
+```
+
+### SI NO HAY FECHAS EN NINGÚN LUGAR:
+```
+Para generar tu enlace de reserva, necesito conocer las fechas de tu estadía.
+
+{Si hay habitación elegida, mencionarla:}
+**✅ Habitación elegida:** {usar reserva_habitacion_elegida.nombre si está disponible}
+
+**❓ Falta especificar:** ¿Para qué fechas necesitas la reserva?
+
+Por ejemplo:
+- "Para el 15 al 17 de marzo"
+- "Del 20 al 25 de abril"
+- "Para el próximo fin de semana"
+
+Una vez que tengas las fechas, podré generar tu enlace de reserva inmediatamente.
+```
+
+### DIRECTRIVES IMPORTANTES:
+1. **VERIFICAR CONTEXTO PRIMERO**: Siempre buscar fechas en el contexto antes de pedirlas
+2. **SER ESPECÍFICO**: Dar ejemplos claros de cómo especificar fechas
+3. **MANTENER INFORMACIÓN**: Si ya hay habitación elegida, mencionarla
+4. **FORMATO DE FECHAS**: Mostrar fechas en formato DD/MM/YYYY al usuario 

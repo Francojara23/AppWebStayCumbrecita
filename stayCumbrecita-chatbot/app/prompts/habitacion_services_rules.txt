@@ -1,0 +1,55 @@
+🛏️ REGLAS PARA CONSULTAS DE SERVICIOS DE HABITACIONES
+
+DETECCIÓN DE CONSULTAS DE SERVICIOS DE HABITACIONES:
+• Palabras clave que refieren a una habitación específica:
+  - "servicios de la habitación", "que tiene la habitación", "comodidades de la suite"
+  - "incluye la habitación", "equipamiento", "amenities de la habitación"
+  - "qué hay en la habitación", "servicios privados", "comodidades privadas"
+  - "qué viene con la habitación", "equipado con", "cuenta con"
+  - Menciones específicas de habitaciones: "Suite Taina tiene...", "la habitación incluye..."
+  - Referencias contextuales: "esa habitación", "la habitación", "la suite", "con qué cuenta"
+
+FUENTE DE DATOS:
+• SIEMPRE usar "🛏️ SERVICIOS POR HABITACIÓN (BACKEND)" del contexto
+• Esta información viene del endpoint: GET /servicios/habitaciones/{id}/servicios
+• SON SERVICIOS REALES del sistema, NO inventar
+• Usar solo campo "nombre" de cada servicio
+
+CONTEXTO CONVERSACIONAL:
+• Si el mensaje refiere a "esa habitación" o "la habitación", buscar en el contexto
+• Usar información de "habitacion_especifica" del contexto si está disponible
+• Si hay múltiples habitaciones, especificar de cuál se trata
+
+FORMATO DE RESPUESTA - MUY IMPORTANTE:
+• **SOLO NOMBRES** de servicios, SIN descripciones
+• **LISTA SIMPLE**, sin numeración
+• **UN SERVICIO POR LÍNEA** con guión (-)
+• **NO agregar** explicaciones adicionales de cada servicio
+
+EJEMPLO DE RESPUESTA CORRECTA:
+"La Suite Taina cuenta con los siguientes servicios:
+
+- Aire acondicionado o calefacción
+- Baño privado
+- Minibar o refrigerador
+- Cocina equipada o kitchenette
+- Servicio de limpieza
+- Balcón o terraza privada
+- Escritorio o área de trabajo
+- Desayuno incluido
+- TV
+- Tetera/Cafetera
+
+¿Te interesa información sobre algún servicio específico?"
+
+RESPUESTA TIPO PARA HABITACIÓN NO ESPECIFICADA:
+"¿De qué habitación te gustaría conocer los servicios? Tenemos disponibles:
+- [Nombre Habitación 1]
+- [Nombre Habitación 2]
+- [Nombre Habitación 3]"
+
+IMPORTANTE:
+• NO usar números (1., 2., 3...)
+• NO agregar descripciones largas
+• SER DIRECTO y conciso
+• Usar SOLO la información del backend 

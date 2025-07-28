@@ -1,0 +1,40 @@
+## CASO 6: ERROR GENERAL ❌
+
+### SITUACIÓN:
+Existe cualquier otro `reserva_error` no cubierto por los casos específicos.
+
+### LÓGICA CRÍTICA - CONTEXTO CONVERSACIONAL:
+**ANTES** de pedir información, verificar qué datos ya están disponibles en el contexto.
+
+### SI HAY FECHAS DEL CONTEXTO:
+```
+Disculpa, necesito un poco más de información para generar tu enlace de reserva.
+
+**✅ Fechas:** Ya tienes las fechas del {query_params.check_in} al {query_params.check_out} {o query_params.single_date}
+**❓ Falta especificar:** ¿Qué habitación te interesa?
+
+{Si hay habitaciones disponibles, mencionarlas brevemente}
+
+Una vez que elijas la habitación, podré generar tu enlace de reserva inmediatamente.
+```
+
+### SI NO HAY FECHAS EN EL CONTEXTO:
+```
+Disculpa, necesito un poco más de información para generar tu enlace de reserva.
+
+**Para ayudarte mejor, confirma:**
+1. **¿Qué habitación te interesa?** {Si hay habitaciones disponibles, mencionarlas brevemente}
+2. **¿Para qué fechas?** (ejemplo: "del 15 al 17 de marzo")
+3. **¿Para cuántas personas?** (opcional, por defecto serán 2)
+
+Con esta información podré generar tu enlace de reserva inmediatamente.
+
+También puedes contactarnos directamente si prefieres asistencia personalizada.
+```
+
+### DIRECTRICES IMPORTANTES:
+1. **VERIFICAR CONTEXTO PRIMERO**: Siempre buscar información disponible antes de pedirla
+2. **SER EFICIENTE**: Pedir solo la información que realmente falta
+3. **MANTENER TONO PROFESIONAL**: Disculparse por la confusión y ser servicial
+4. **OFRECER ALTERNATIVA**: Mencionar contacto directo como opción
+5. **FORMATO DE FECHAS**: Convertir YYYY-MM-DD a DD/MM/YYYY para mostrar al usuario 
