@@ -115,25 +115,116 @@ export default function SearchPage() {
   const fechaFin = searchParams.get('fechaFin')
   const { data: rangosPrecio } = useRangosPrecio(fechaInicio || undefined, fechaFin || undefined)
 
+  // Hook para obtener habitaciones y calcular precios mínimos
+  const useHospedajesConPreciosMinimos = () => {
+    const [hospedajesConPrecios, setHospedajesConPrecios] = useState<any[]>([])
+    const [isLoadingPrecios, setIsLoadingPrecios] = useState(false)
+
+    useEffect(() => {
+      const calcularPreciosMinimos = async () => {
+        if (!hospedajesData?.data?.length) {
+          setHospedajesConPrecios([])
+          return
+        }
+
+        setIsLoadingPrecios(true)
+        try {
+          const hospedajesConPreciosData = await Promise.all(
+            hospedajesData.data.map(async (hospedaje: any) => {
+              try {
+                // Obtener habitaciones del hospedaje
+                const response = await fetch(`${getClientApiUrl()}/hospedajes/${hospedaje.id}/habitaciones`)
+                let precioMinimo = rangosPrecio?.precioMinimo || 129900 // Precio por defecto
+
+                if (response.ok) {
+                  const habitacionesData = await response.json()
+                  const habitaciones = habitacionesData.data || []
+                  
+                  // Calcular precio mínimo de las habitaciones de este hospedaje
+                  if (habitaciones.length > 0) {
+                                         const precios = habitaciones.map((hab: any) => Number(hab.precioBase) || 0)
+                     precioMinimo = Math.min(...precios.filter((p: number) => p > 0))
+                    
+                    // Si no hay precios válidos, usar el precio por defecto
+                    if (!precioMinimo || precioMinimo === Infinity) {
+                      precioMinimo = rangosPrecio?.precioMinimo || 129900
+                    }
+                  }
+                }
+
+                return {
+                  id: hospedaje.id,
+                  name: hospedaje.nombre,
+                  image: hospedaje.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.[0]?.url || "/mountain-cabin-retreat.png",
+                  location: hospedaje.direccion || "La Cumbrecita, Córdoba",
+                  description: hospedaje.descripcionCorta || hospedaje.descripcionLarga || "Sin descripción disponible",
+                  price: precioMinimo,
+                  rating: hospedaje.calificacionPromedio || null,
+                  featured: hospedaje.destacado || false,
+                  services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
+                  roomServices: [],
+                  availableRooms: hospedaje.cantidadHabitaciones || 1,
+                  tipoHospedajeId: hospedaje.tipoHotel?.id,
+                }
+              } catch (error) {
+                console.error(`Error obteniendo habitaciones para ${hospedaje.id}:`, error)
+                // En caso de error, usar precio por defecto
+                return {
+                  id: hospedaje.id,
+                  name: hospedaje.nombre,
+                  image: hospedaje.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.[0]?.url || "/mountain-cabin-retreat.png",
+                  location: hospedaje.direccion || "La Cumbrecita, Córdoba",
+                  description: hospedaje.descripcionCorta || hospedaje.descripcionLarga || "Sin descripción disponible",
+                  price: rangosPrecio?.precioMinimo || 129900,
+                  rating: hospedaje.calificacionPromedio || null,
+                  featured: hospedaje.destacado || false,
+                  services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
+                  roomServices: [],
+                  availableRooms: hospedaje.cantidadHabitaciones || 1,
+                  tipoHospedajeId: hospedaje.tipoHotel?.id,
+                }
+              }
+            })
+          )
+          setHospedajesConPrecios(hospedajesConPreciosData)
+        } catch (error) {
+          console.error('Error calculando precios mínimos:', error)
+          // Fallback a mapeo básico sin precios específicos
+          const basicMapping = hospedajesData.data.map((hospedaje: any) => ({
+            id: hospedaje.id,
+            name: hospedaje.nombre,
+            image: hospedaje.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.[0]?.url || "/mountain-cabin-retreat.png",
+            location: hospedaje.direccion || "La Cumbrecita, Córdoba",
+            description: hospedaje.descripcionCorta || hospedaje.descripcionLarga || "Sin descripción disponible",
+            price: rangosPrecio?.precioMinimo || 129900,
+            rating: hospedaje.calificacionPromedio || null,
+            featured: hospedaje.destacado || false,
+            services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
+            roomServices: [],
+            availableRooms: hospedaje.cantidadHabitaciones || 1,
+            tipoHospedajeId: hospedaje.tipoHotel?.id,
+          }))
+          setHospedajesConPrecios(basicMapping)
+        } finally {
+          setIsLoadingPrecios(false)
+        }
+      }
+
+      calcularPreciosMinimos()
+    }, [hospedajesData?.data?.length, JSON.stringify(hospedajesData?.data?.map((h: any) => h.id)), rangosPrecio?.precioMinimo])
+
+    return {
+      data: hospedajesConPrecios,
+      isLoading: isLoadingPrecios
+    }
+  }
+
+  // Usar el hook para obtener hospedajes con precios correctos
+  const { data: hospedajesConPreciosCorrectos, isLoading: isLoadingPrecios } = useHospedajesConPreciosMinimos()
+
   // Calcular hospedajes filtrados por otros criterios primero (sin servicios de habitación)
   const hospedajesFiltradosBasicos = useMemo(() => {
-    let filtered = hospedajesData?.data?.map((hospedaje: any) => {
-      const mapped = {
-        id: hospedaje.id,
-        name: hospedaje.nombre,
-        image: hospedaje.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.[0]?.url || "/mountain-cabin-retreat.png",
-        location: hospedaje.direccion || "La Cumbrecita, Córdoba",
-        description: hospedaje.descripcionCorta || hospedaje.descripcionLarga || "Sin descripción disponible",
-        price: rangosPrecio?.precioMinimo || 129900,
-        rating: hospedaje.calificacionPromedio || null,
-        featured: hospedaje.destacado || false,
-        services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
-        roomServices: [],
-        availableRooms: hospedaje.cantidadHabitaciones || 1,
-        tipoHospedajeId: hospedaje.tipoHotel?.id,
-      }
-      return mapped
-    }) || []
+    let filtered = hospedajesConPreciosCorrectos || []
 
     // Aplicar filtros básicos (sin servicios de habitación)
     if (guests > 0) {
@@ -593,14 +684,14 @@ export default function SearchPage() {
     ), [servicios, selectedRoomServices]
   )
 
-  if (isLoadingHospedajes && isInitialLoad) {
+  if ((isLoadingHospedajes || isLoadingPrecios) && isInitialLoad) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Buscando hospedajes...</p>
+            <p>{isLoadingPrecios ? "Calculando precios..." : "Buscando hospedajes..."}</p>
           </div>
         </div>
         <Footer />
@@ -841,19 +932,22 @@ export default function SearchPage() {
 
           {/* Loading State */}
           {(isLoadingHospedajes && !isInitialLoad) || 
+           isLoadingPrecios ||
            (isLoadingDisponibilidad && checkInDate && checkOutDate) ||
            (isLoadingHabitaciones && selectedRoomServices.length > 0) ||
            (isLoadingCapacidad && guests > 2) ? (
             <div className="text-center py-8">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
               <p>
-                {isLoadingDisponibilidad && checkInDate && checkOutDate
-                  ? "Verificando disponibilidad para las fechas seleccionadas..."
-                  : isLoadingCapacidad && guests > 2 
-                    ? `Buscando habitaciones para ${guests} huéspedes...`
-                    : isLoadingHabitaciones && selectedRoomServices.length > 0 
-                      ? "Analizando habitaciones con servicios seleccionados..."
-                      : "Actualizando resultados..."
+                {isLoadingPrecios
+                  ? "Calculando precios de habitaciones..."
+                  : isLoadingDisponibilidad && checkInDate && checkOutDate
+                    ? "Verificando disponibilidad para las fechas seleccionadas..."
+                    : isLoadingCapacidad && guests > 2 
+                      ? `Buscando habitaciones para ${guests} huéspedes...`
+                      : isLoadingHabitaciones && selectedRoomServices.length > 0 
+                        ? "Analizando habitaciones con servicios seleccionados..."
+                        : "Actualizando resultados..."
                 }
               </p>
             </div>

@@ -248,7 +248,7 @@ export default function ChatbotPage() {
 
     try {
       const formData = new FormData(event.currentTarget)
-      const file = formData.get('pdf') as File
+      const file = formData.get('file') as File
       
       if (!file) {
         toast({
@@ -575,12 +575,12 @@ export default function ChatbotPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="pdf" className="text-sm font-medium">
+              <Label htmlFor="file" className="text-sm font-medium">
                 Nuevo archivo PDF:
               </Label>
               <Input
-                id="pdf"
-                name="pdf"
+                id="file"
+                name="file"
                 type="file"
                 accept=".pdf"
                 required

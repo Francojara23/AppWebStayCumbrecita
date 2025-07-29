@@ -55,7 +55,10 @@ export function useUserPermissions(): UserPermissions {
           console.log('No se pudieron obtener empleos:', empleadosError)
         }
 
-        const isOwner = ownedIds.length > 0
+        // ✅ CORREGIDO: Se puede ser owner de DOS formas:
+        // 1. Tener hospedajes existentes (ownedIds.length > 0)
+        // 2. Tener rol PROPIETARIO (user.originalRole === 'PROPIETARIO')
+        const isOwner = ownedIds.length > 0 || user.originalRole === 'PROPIETARIO'
         const isAdmin = adminHospedajes.length > 0
         const hasAdminAccess = isOwner || isAdmin
 
@@ -71,7 +74,10 @@ export function useUserPermissions(): UserPermissions {
 
         console.log('🔐 Permisos del usuario:', {
           userId: user.id,
+          userRole: user.originalRole,
           isOwner,
+          isOwnerByRole: user.originalRole === 'PROPIETARIO',
+          isOwnerByProperties: ownedIds.length > 0,
           isAdmin,
           hasAdminAccess,
           ownedHospedajes: ownedIds.length,

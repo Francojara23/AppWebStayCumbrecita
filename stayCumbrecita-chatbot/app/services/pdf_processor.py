@@ -4,6 +4,8 @@ import io
 from typing import List, Optional, Dict, Any
 from PyPDF2 import PdfReader
 import re
+import cloudinary
+from cloudinary.utils import cloudinary_url
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -13,15 +15,70 @@ class PDFProcessor:
         self.chunk_size = 1000  # Tamaño de chunk en caracteres
         self.chunk_overlap = 200  # Solapamiento entre chunks
         
-    async def extract_text_from_url(self, pdf_url: str) -> Optional[str]:
-        """Extrae texto de un PDF desde una URL (Cloudinary)"""
+        # Configurar Cloudinary para autenticación
+        cloudinary.config(
+            cloud_name=settings.cloudinary_cloud_name,
+            api_key=settings.cloudinary_api_key,
+            api_secret=settings.cloudinary_api_secret
+        )
+    
+    def _extract_public_id_from_url(self, pdf_url: str) -> Optional[str]:
+        """Extrae el public_id de una URL de Cloudinary"""
         try:
+            # Patrón para URLs de Cloudinary: 
+            # https://res.cloudinary.com/{cloud_name}/raw/upload/v{version}/{public_id}.pdf
+            import re
+            pattern = r'https://res\.cloudinary\.com/[^/]+/raw/upload/(?:v\d+/)?(.+)\.pdf'
+            match = re.search(pattern, pdf_url)
+            
+            if match:
+                public_id = match.group(1)
+                logger.info(f"Public ID extraído: {public_id}")
+                return public_id
+            else:
+                logger.error(f"No se pudo extraer public_id de la URL: {pdf_url}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error extrayendo public_id: {e}")
+            return None
+        
+    async def extract_text_from_url(self, pdf_url: str) -> Optional[str]:
+        """Extrae texto de un PDF desde una URL (Cloudinary) con autenticación"""
+        try:
+            # Primero, intentar descargar con la URL original (puede ser pública)
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(pdf_url)
                 
-                if response.status_code != 200:
-                    logger.error(f"Error descargando PDF: {response.status_code}")
-                    return None
+                # Si funciona, usar la URL original
+                if response.status_code == 200:
+                    logger.info("PDF descargado exitosamente con URL original")
+                else:
+                    logger.info(f"URL original falló ({response.status_code}), intentando con autenticación...")
+                    
+                    # Extraer public_id para generar URL autenticada
+                    public_id = self._extract_public_id_from_url(pdf_url)
+                    if not public_id:
+                        logger.error("No se pudo extraer public_id de la URL")
+                        return None
+                    
+                    # Generar URL autenticada usando Cloudinary
+                    auth_url, _ = cloudinary_url(
+                        public_id,
+                        resource_type="raw",    # PDFs se almacenan como 'raw' en Cloudinary
+                        type="private",         # Especificar que es un recurso privado
+                        sign_url=True,
+                        secure=True
+                    )
+                    
+                    logger.info(f"URL autenticada generada: {auth_url[:100]}...")
+                    
+                    # Intentar con URL autenticada
+                    response = await client.get(auth_url)
+                    
+                    if response.status_code != 200:
+                        logger.error(f"Error descargando PDF con auth: {response.status_code}")
+                        return None
                 
                 # Leer PDF desde bytes
                 pdf_bytes = io.BytesIO(response.content)
@@ -46,6 +103,44 @@ class PDFProcessor:
                 
         except Exception as e:
             logger.error(f"Error procesando PDF: {e}")
+            return None
+    
+    async def extract_text_from_backend_proxy(self, document_id: str) -> Optional[str]:
+        """Extrae texto de un PDF usando el endpoint proxy del backend"""
+        try:
+            backend_url = f"{settings.backend_url}/chatbot/download/{document_id}"
+            logger.info(f"Descargando PDF a través del backend: {backend_url}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(backend_url)
+                
+                if response.status_code != 200:
+                    logger.error(f"Error descargando PDF desde backend: {response.status_code}")
+                    return None
+                
+                # Leer PDF desde bytes
+                pdf_bytes = io.BytesIO(response.content)
+                reader = PdfReader(pdf_bytes)
+                
+                # Extraer texto de todas las páginas
+                text_content = []
+                for page in reader.pages:
+                    text_content.append(page.extract_text())
+                
+                full_text = "\n".join(text_content)
+                
+                # Limpiar texto
+                cleaned_text = self._clean_text(full_text)
+                
+                if not cleaned_text.strip():
+                    logger.warning("El PDF no contiene texto extraíble")
+                    return None
+                
+                logger.info(f"Texto extraído exitosamente: {len(cleaned_text)} caracteres")
+                return cleaned_text
+                
+        except Exception as e:
+            logger.error(f"Error extrayendo texto del PDF via backend: {e}")
             return None
     
     def _clean_text(self, text: str) -> str:

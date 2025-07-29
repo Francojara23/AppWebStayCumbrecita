@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # Backend API
     backend_url: str = os.getenv("BACKEND_URL", "http://backend:5001")
     
+    # Cloudinary (para descargar PDFs privados)
+    cloudinary_cloud_name: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    cloudinary_api_key: str = os.getenv("CLOUDINARY_API_KEY", "")
+    cloudinary_api_secret: str = os.getenv("CLOUDINARY_API_SECRET", "")
+    
     # Frontend URL (para generar enlaces de checkout)
     frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
@@ -69,6 +74,9 @@ def validate_settings():
     
     if not settings.backend_url:
         errors.append("BACKEND_URL es requerida")
+    
+    if not settings.cloudinary_cloud_name or not settings.cloudinary_api_key or not settings.cloudinary_api_secret:
+        errors.append("Credenciales de Cloudinary (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) son requeridas")
     
     if errors:
         print("❌ Errores de configuración encontrados:")

@@ -152,8 +152,8 @@ class KnowledgeService:
                 logger.info(f"Documento {doc_id} ya fue procesado")
                 return True
             
-            # Extraer texto del PDF
-            text_content = await self.pdf_processor.extract_text_from_url(doc_url)
+            # Descargar PDF a través del proxy del backend
+            text_content = await self.pdf_processor.extract_text_from_backend_proxy(doc_id)
             if not text_content:
                 logger.error(f"No se pudo extraer texto del documento {doc_id}")
                 return False
@@ -165,8 +165,11 @@ class KnowledgeService:
             for i, chunk in enumerate(chunks):
                 # Generar embedding
                 embedding = await self.generate_embedding(chunk)
+                
+                # ⚠️ TEMPORAL: Guardar chunk aunque falle el embedding
                 if not embedding:
-                    continue
+                    logger.warning(f"No se pudo generar embedding para chunk {i}, guardando sin embedding")
+                    embedding = [0.0] * 1536  # Vector vacío compatible con text-embedding-3-small
                 
                 # Guardar en base de datos
                 await self._save_chunk(

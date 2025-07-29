@@ -19,4 +19,5 @@ pypdf==3.17.4
 # Utilidades adicionales
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-email-validator==2.1.0 
+email-validator==2.1.0
+cloudinary==1.40.0

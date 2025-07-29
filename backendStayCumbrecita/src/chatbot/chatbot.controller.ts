@@ -9,8 +9,10 @@ import {
   UseInterceptors, 
   UploadedFile, 
   UseGuards,
-  Request
+  Request,
+  Res
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
 import { ChatbotService } from './chatbot.service';
@@ -34,6 +36,27 @@ export class ChatbotController {
     console.log('🤖 Chatbot Python marcando como entrenado hospedaje:', hospedajeId);
     await this.chatbotService.markAsTrained(hospedajeId);
     return { message: 'Documento marcado como entrenado' };
+  }
+
+  @Get(':hospedajeId/documents')
+  async getDocuments(@Param('hospedajeId') hospedajeId: string) {
+    console.log('🤖 Chatbot Python solicitando documentos para hospedaje:', hospedajeId);
+    return await this.chatbotService.getDocuments(hospedajeId);
+  }
+
+  @Get('download/:documentId')
+  async downloadDocument(
+    @Param('documentId') documentId: string,
+    @Res() res: Response
+  ) {
+    console.log('🤖 Chatbot Python descargando documento:', documentId);
+    const result = await this.chatbotService.downloadDocument(documentId);
+    
+    // Configurar headers
+    res.set(result.headers);
+    
+    // Enviar el buffer como respuesta
+    res.send(result.buffer);
   }
 
   // ========== ENDPOINTS CON AUTENTICACIÓN ==========

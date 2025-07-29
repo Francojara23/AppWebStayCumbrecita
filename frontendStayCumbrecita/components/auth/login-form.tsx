@@ -34,8 +34,8 @@ export default function LoginForm({ onSubmit, userType }: LoginFormProps) {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: userType === "tourist" ? "demo@example.com" : "admin@example.com",
-      password: "Password1",
+      email: "",
+      password: "",
     },
   })
 
@@ -73,7 +73,7 @@ export default function LoginForm({ onSubmit, userType }: LoginFormProps) {
               <FormControl>
                 <div className="relative">
                   <AtSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input placeholder="correo@ejemplo.com" className="pl-10" {...field} />
+                  <Input placeholder={userType === "tourist" ? "demo@example.com" : "admin@example.com"} className="pl-10" {...field} />
                 </div>
               </FormControl>
               <FormMessage />
@@ -90,7 +90,7 @@ export default function LoginForm({ onSubmit, userType }: LoginFormProps) {
               <FormControl>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input type="password" placeholder="********" className="pl-10" {...field} />
+                  <Input type="password" placeholder="Password1" className="pl-10" {...field} />
                 </div>
               </FormControl>
               <FormMessage />
