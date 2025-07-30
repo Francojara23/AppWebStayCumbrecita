@@ -16,7 +16,7 @@ import { QrCodeModule } from "../qr-code/qr-code.module";
   imports: [
     TypeOrmModule.forFeature([Reserva, ReservaLinea, Acompaniante, HuespedReserva]),
     forwardRef(() => HabitacionesModule),
-    HospedajesModule,
+    forwardRef(() => HospedajesModule),
     NotificacionesModule,
     QrCodeModule,
     forwardRef(() => PagosModule),

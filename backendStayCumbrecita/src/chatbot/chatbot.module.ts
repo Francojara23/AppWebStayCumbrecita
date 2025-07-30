@@ -5,6 +5,7 @@ import { ChatbotController } from './chatbot.controller';
 import { ChatbotService } from './chatbot.service';
 import { ChatbotDocument } from './entidades/chatbot-document.entity';
 import { EmpleadosModule } from '../empleados/empleados.module';
+import { DocumentsModule } from '../uploads/documents/documents.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { EmpleadosModule } from '../empleados/empleados.module';
       },
     }),
     EmpleadosModule,
+    DocumentsModule,
   ],
   controllers: [ChatbotController],
   providers: [ChatbotService],

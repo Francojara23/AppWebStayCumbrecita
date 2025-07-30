@@ -5,7 +5,7 @@ import { ChatbotDocument, TonoChatbot } from './entidades/chatbot-document.entit
 import { UploadPdfDto } from './dto/upload-pdf.dto';
 import { UpdateTonoDto } from './dto/update-tono.dto';
 import { EmpleadosService } from '../empleados/empleados.service';
-import { v2 as cloudinary } from 'cloudinary';
+import { DocumentsService } from '../uploads/documents/documents.service';
 
 @Injectable()
 export class ChatbotService {
@@ -13,6 +13,7 @@ export class ChatbotService {
     @InjectRepository(ChatbotDocument)
     private chatbotDocumentRepository: Repository<ChatbotDocument>,
     private empleadosService: EmpleadosService,
+    private documentsService: DocumentsService,
   ) {}
 
   async uploadPdf(
@@ -45,21 +46,11 @@ export class ChatbotService {
       { isActive: false }
     );
 
-    // Subir a Cloudinary como recurso privado
-    const uploadResult = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          resource_type: 'raw',    // Explícitamente como 'raw' para PDFs
-          type: 'private',         // Subir como recurso privado
-          folder: 'chatbot-pdfs',
-          format: 'pdf',
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(file.buffer);
-    }) as any;
+    // Subir a Cloudinary como recurso privado usando DocumentsService
+    const uploadResult = await this.documentsService.uploadPrivateFile(
+      file,
+      'chatbot-pdfs'
+    );
 
     // Crear nuevo documento
     const chatbotDocument = this.chatbotDocumentRepository.create({
@@ -170,52 +161,17 @@ export class ChatbotService {
     }
 
     try {
-      // Generar URL firmada para descargar recurso raw privado
-      const timestamp = Math.floor(Date.now() / 1000);
-      const expiresAt = timestamp + 3600; // 1 hora
-      
-      // Generar firma manualmente para recursos raw privados
-      const paramsToSign = {
-        expires_at: expiresAt,
-        public_id: document.pdfPublicId,
-        timestamp: timestamp
-      };
-      
-      const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET || '');
-      
-      const secureUrl = `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/raw/download` +
-        `?public_id=${encodeURIComponent(document.pdfPublicId)}` +
-        `&timestamp=${timestamp}` +
-        `&expires_at=${expiresAt}` +
-        `&signature=${signature}` +
-        `&api_key=${process.env.CLOUDINARY_API_KEY}`;
-      
-      console.log('🔗 URL firmada generada:', secureUrl);
-      console.log('📄 Public ID del documento:', document.pdfPublicId);
-      
-      // Descargar usando la URL firmada
-      const response = await fetch(secureUrl);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Error desde Cloudinary:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorBody: errorText,
-          url: secureUrl
-        });
-        throw new BadRequestException(`Error descargando PDF desde Cloudinary: ${response.status} - ${response.statusText}`);
-      }
+      console.log('🤖 Descargando documento del chatbot:', {
+        documentId,
+        publicId: document.pdfPublicId,
+        filename: document.pdfFilename
+      });
 
-      const buffer = await response.arrayBuffer();
-      
-      return {
-        buffer: Buffer.from(buffer),
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${document.pdfFilename}"`,
-        }
-      };
+      // Usar DocumentsService para descargar documento privado
+      return await this.documentsService.downloadPrivateDocument(
+        document.pdfPublicId,
+        document.pdfFilename
+      );
 
     } catch (error) {
       console.error('Error descargando documento:', error);
@@ -235,9 +191,9 @@ export class ChatbotService {
       throw new NotFoundException('No se encontró documento activo para este hospedaje');
     }
 
-    // Eliminar de Cloudinary
+    // Eliminar de Cloudinary usando DocumentsService
     if (document.pdfPublicId) {
-      await cloudinary.uploader.destroy(document.pdfPublicId);
+      await this.documentsService.deleteByPublicId(document.pdfPublicId);
     }
 
     // Marcar como inactivo

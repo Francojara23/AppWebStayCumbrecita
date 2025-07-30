@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like } from 'typeorm';
+import { Repository, Between, Like, DataSource, In } from 'typeorm';
 import { HabitacionEntity } from './entidades/habitacion.entity';
 import { TipoHabitacionEntity } from './entidades/tipo-habitacion.entity';
 import { ImagenHabitacionEntity } from './entidades/imagen-habitacion.entity';
+import { HabitacionServicio } from '../servicios/entidades/habitacion-servicio.entity';
 import { CreateHabitacionDto } from './dto/create-habitacion.dto';
 import { UpdateHabitacionDto } from './dto/update-habitacion.dto';
 import { FindHabitacionesDto } from './dto/find-habitaciones.dto';
@@ -11,6 +12,8 @@ import { QueryDisponibilidadDto } from './dto/query-disponibilidad.dto';
 import { QueryDisponibilidadMesDto } from './dto/query-disponibilidad-mes.dto';
 import { QueryDisponibilidadMesesDto } from './dto/query-disponibilidad-meses.dto';
 import { DisponibilidadMensualResponseDto, DisponibilidadMultipleMesesResponseDto, HabitacionDisponibilidadMensualDto } from './dto/disponibilidad-mensual-response.dto';
+import { CreateMultipleHabitacionesDto } from './dto/create-multiple-habitaciones.dto';
+import { HabitacionAgrupadaDto, HabitacionesAgrupadasResponseDto } from './dto/habitacion-agrupada-response.dto';
 import { PrecioBaseDto } from './dto/precio-base.dto';
 import { AjustePrecioDto } from './dto/ajuste-precio.dto';
 import { UpdateServicioDto } from './dto/update-servicio.dto';
@@ -33,11 +36,15 @@ export class HabitacionesService {
     private tiposHabitacionRepository: Repository<TipoHabitacionEntity>,
     @InjectRepository(ImagenHabitacionEntity)
     private imagenesHabitacionRepository: Repository<ImagenHabitacionEntity>,
+    @InjectRepository(HabitacionServicio)
+    private habitacionServicioRepository: Repository<HabitacionServicio>,
+    @Inject(forwardRef(() => HospedajesService))
     private hospedajesService: HospedajesService,
     private empleadosService: EmpleadosService,
     private imagesService: ImagesService,
     @Inject(forwardRef(() => ReservasService))
     private reservasService: ReservasService,
+    private dataSource: DataSource,
   ) {}
 
   /**
@@ -72,9 +79,12 @@ export class HabitacionesService {
       throw new NotFoundException('Tipo de habitación no encontrado');
     }
 
+    // Extraer servicios del DTO (siguiendo patrón de hospedajes)
+    const { servicios, ...habitacionData } = createHabitacionDto;
+
     // Crear la habitación
     const habitacion = this.habitacionesRepository.create({
-      ...createHabitacionDto,
+      ...habitacionData,
       hospedaje: { id: hospedajeId } as any,
       tipoHabitacion: tipoHabitacion as any,
     });
@@ -83,8 +93,8 @@ export class HabitacionesService {
     const habitacionGuardada = await this.habitacionesRepository.save(habitacion);
 
     // Guardar las imágenes si existen
-    if (createHabitacionDto.imagenes && createHabitacionDto.imagenes.length > 0) {
-      const imagenes = createHabitacionDto.imagenes.map(img => 
+    if (habitacionData.imagenes && habitacionData.imagenes.length > 0) {
+      const imagenes = habitacionData.imagenes.map(img => 
         this.imagenesHabitacionRepository.create({
           ...img,
           habitacion: habitacionGuardada as any,
@@ -93,7 +103,38 @@ export class HabitacionesService {
       await this.imagenesHabitacionRepository.save(imagenes);
     }
 
+    // Crear servicios si se proporcionaron (siguiendo patrón de hospedajes)
+    if (servicios && servicios.length > 0) {
+      await this.crearServiciosHabitacion(habitacionGuardada.id, servicios);
+    }
+
     return this.findOne(habitacionGuardada.id);
+  }
+
+  /**
+   * Crea servicios para una habitación (siguiendo patrón de hospedajes)
+   * @param habitacionId ID de la habitación
+   * @param serviciosIds IDs de los servicios a asociar
+   */
+  private async crearServiciosHabitacion(habitacionId: string, serviciosIds: string[]): Promise<void> {
+    console.log('🔧 [HabitacionesService] Creando servicios para habitación:', {
+      habitacionId,
+      servicios: serviciosIds.length
+    });
+
+    const serviciosParaCrear = serviciosIds.map(servicioId => {
+      return this.habitacionServicioRepository.create({
+        habitacion: { id: habitacionId } as any,
+        servicio: { id: servicioId } as any,
+      });
+    });
+
+    await this.habitacionServicioRepository.save(serviciosParaCrear);
+    
+    console.log('✅ [HabitacionesService] Servicios creados exitosamente:', {
+      habitacionId,
+      serviciosCreados: serviciosParaCrear.length
+    });
   }
 
   /**
@@ -956,6 +997,153 @@ export class HabitacionesService {
   }
 
   /**
+   * Agrega las mismas imágenes a múltiples habitaciones (optimización para creación múltiple)
+   * @param hospedajeId ID del hospedaje (para verificar permisos)
+   * @param habitacionIds Array de IDs de habitaciones
+   * @param files Archivos de imagen a subir
+   * @param descripciones JSON string con descripciones (opcional)
+   * @param ordenes JSON string con órdenes (opcional)
+   * @param userId ID del usuario que realiza la acción
+   * @param userRole Rol del usuario que realiza la acción
+   * @returns Resultado de la operación con estadísticas
+   */
+  async addImagenesToMultipleHabitaciones(
+    hospedajeId: string,
+    habitacionIds: string[],
+    files: Express.Multer.File[],
+    descripciones?: string,
+    ordenes?: string,
+    userId?: number,
+    userRole?: string
+  ): Promise<any> {
+    console.log('🏠📸 [HabitacionesService] Agregando imágenes a múltiples habitaciones:', {
+      hospedajeId,
+      habitaciones: habitacionIds.length,
+      imagenes: files.length
+    });
+
+    // Verificar permisos para el hospedaje
+    const tienePermisos = await this.empleadosService.verificarPermisosHospedaje(
+      hospedajeId,
+      String(userId),
+      userRole
+    );
+
+    if (!tienePermisos) {
+      throw new ForbiddenException('No tienes permiso para agregar imágenes a habitaciones de este hospedaje');
+    }
+
+    // Verificar que todas las habitaciones existen y pertenecen al hospedaje
+    const habitaciones = await this.habitacionesRepository.find({
+      where: { 
+        id: In(habitacionIds),
+        hospedaje: { id: hospedajeId }
+      },
+      relations: ['hospedaje']
+    });
+
+    if (habitaciones.length !== habitacionIds.length) {
+      throw new NotFoundException('Una o más habitaciones no encontradas o no pertenecen al hospedaje');
+    }
+
+    // Parsear descripciones y órdenes
+    let descripcionesArray: string[] = [];
+    let ordenesArray: number[] = [];
+
+    try {
+      if (descripciones) {
+        descripcionesArray = JSON.parse(descripciones);
+      }
+    } catch (error) {
+      console.warn('Error parsing descripciones, usando array vacío');
+      descripcionesArray = [];
+    }
+
+    try {
+      if (ordenes) {
+        ordenesArray = JSON.parse(ordenes);
+      }
+    } catch (error) {
+      console.warn('Error parsing ordenes, usando array vacío');
+      ordenesArray = [];
+    }
+
+    console.log('🎯 [HabitacionesService] OPTIMIZACIÓN: Subiendo imágenes UNA SOLA VEZ a Cloudinary...');
+
+    // 🎯 OPTIMIZACIÓN: Subir cada imagen UNA SOLA VEZ a Cloudinary
+    const imagenesCloudinary: any[] = [];
+    
+    for (const [index, file] of files.entries()) {
+      try {
+        console.log(`📤 Subiendo imagen ${index + 1}/${files.length}: ${file.originalname}`);
+        
+        // Subir imagen a Cloudinary UNA SOLA VEZ
+        const cloudinaryResponse = await this.imagesService.uploadFile(
+          file,
+          'habitaciones'
+        );
+
+        const imagenData = {
+          url: cloudinaryResponse.secure_url,
+          publicId: cloudinaryResponse.public_id,
+          descripcion: descripcionesArray[index] || undefined,
+          orden: ordenesArray[index] || undefined,
+          formato: cloudinaryResponse.format,
+          tamaño: cloudinaryResponse.bytes,
+        } as any;
+
+        imagenesCloudinary.push(imagenData);
+        console.log(`✅ Imagen ${index + 1} subida a Cloudinary: ${file.originalname}`);
+      } catch (error) {
+        console.error(`❌ Error subiendo imagen ${index + 1} (${file.originalname}):`, error.message);
+        throw new Error(`Error subiendo imagen ${file.originalname}: ${error.message}`);
+      }
+    }
+
+    console.log('🔄 [HabitacionesService] Asociando imágenes a todas las habitaciones...');
+
+    // 🔄 Crear relaciones para TODAS las habitaciones usando las mismas URLs
+    const relacionesImagenes: ImagenHabitacionEntity[] = [];
+    
+    for (const habitacion of habitaciones) {
+      for (const imagenData of imagenesCloudinary) {
+        const imagenHabitacion = this.imagenesHabitacionRepository.create({
+          ...imagenData,
+          habitacion: habitacion as any,
+        });
+        relacionesImagenes.push(imagenHabitacion as any);
+      }
+    }
+
+    // Guardar todas las relaciones en una sola operación
+    const relacionesGuardadas = await this.imagenesHabitacionRepository.save(relacionesImagenes as any);
+
+    console.log('✅ [HabitacionesService] Proceso completado exitosamente:', {
+      imagenesSubidas: imagenesCloudinary.length,
+      relacionesCreadas: relacionesGuardadas.length,
+      habitaciones: habitaciones.length,
+      optimizacion: `${imagenesCloudinary.length} uploads vs ${imagenesCloudinary.length * habitaciones.length} sin optimización`
+    });
+
+    return {
+      success: true,
+      message: `${imagenesCloudinary.length} imágenes agregadas exitosamente a ${habitaciones.length} habitaciones`,
+      estadisticas: {
+        imagenesSubidas: imagenesCloudinary.length,
+        habitacionesAfectadas: habitaciones.length,
+        relacionesCreadas: relacionesGuardadas.length,
+        optimizacion: {
+          uploadsRealizados: imagenesCloudinary.length,
+          uploadsSinOptimizacion: imagenesCloudinary.length * habitaciones.length,
+          ahorro: `${((imagenesCloudinary.length * habitaciones.length) - imagenesCloudinary.length)} uploads evitados`
+        }
+      },
+      imagenes: imagenesCloudinary,
+      habitaciones: habitaciones.map(h => ({ id: h.id, nombre: h.nombre }))
+    };
+  }
+
+  /**
    * Elimina una imagen de una habitación
    * @param habitacionId ID de la habitación
    * @param imagenId ID de la imagen
@@ -999,5 +1187,432 @@ export class HabitacionesService {
     // Soft delete de la relación
     imagenHabitacion.active = false;
     await this.imagenesHabitacionRepository.save(imagenHabitacion);
+  }
+
+  /**
+   * Procesa las tempImages subiendo los archivos a Cloudinary una sola vez
+   * @param tempImages Archivos temporales a subir
+   * @returns Array de ImagenHabitacionDto con URLs de Cloudinary
+   */
+  private async procesarImagenesTemporales(tempImages: any[]): Promise<any[]> {
+    if (!tempImages || tempImages.length === 0) {
+      return [];
+    }
+
+    console.log('📸 [HabitacionesService] Procesando imágenes temporales:', {
+      cantidad: tempImages.length
+    });
+
+    const imagenesCloudinary: any[] = [];
+
+    for (const tempImage of tempImages) {
+      try {
+        // Subir imagen a Cloudinary usando el servicio existente
+        const cloudinaryResponse = await this.imagesService.uploadFile(
+          tempImage.file, 
+          'habitaciones'
+        );
+
+        // Crear objeto con formato compatible con ImagenHabitacionDto
+        const imagenDto = {
+          url: cloudinaryResponse.secure_url,
+          descripcion: tempImage.descripcion || '',
+          orden: tempImage.orden || 0,
+          publicId: cloudinaryResponse.public_id,
+          formato: cloudinaryResponse.format,
+          tamaño: cloudinaryResponse.bytes
+        };
+
+        imagenesCloudinary.push(imagenDto);
+        
+        console.log('✅ [HabitacionesService] Imagen subida a Cloudinary:', {
+          originalId: tempImage.id,
+          url: cloudinaryResponse.secure_url
+        });
+      } catch (error) {
+        console.error('❌ [HabitacionesService] Error subiendo imagen temporal:', {
+          imagenId: tempImage.id,
+          error: error.message
+        });
+        throw new Error(`Error subiendo imagen ${tempImage.id}: ${error.message}`);
+      }
+    }
+
+    console.log('✅ [HabitacionesService] Todas las imágenes procesadas:', {
+      procesadas: imagenesCloudinary.length,
+      total: tempImages.length
+    });
+
+    return imagenesCloudinary;
+  }
+
+  /**
+   * Crea múltiples habitaciones idénticas con optimización de imágenes
+   * @param createMultipleDto Datos para crear múltiples habitaciones
+   * @param userId ID del usuario que crea las habitaciones
+   * @param userRole Rol del usuario que crea las habitaciones
+   * @returns Array de habitaciones creadas
+   */
+  async createMultiple(
+    createMultipleDto: CreateMultipleHabitacionesDto, 
+    userId: number, 
+    userRole: string
+  ): Promise<HabitacionEntity[]> {
+    const { cantidad, datosHabitacion } = createMultipleDto;
+    const habitacionesCreadas: HabitacionEntity[] = [];
+
+    console.log('🏠 [HabitacionesService] Creando múltiples habitaciones:', {
+      cantidad,
+      nombre: datosHabitacion.nombre,
+      hospedajeId: (datosHabitacion as any).hospedajeId,
+      tieneImagenesTemporales: !!(datosHabitacion as any).tempImages?.length,
+      tieneServicios: !!(datosHabitacion.servicios?.length),
+      servicios: datosHabitacion.servicios?.length || 0
+    });
+
+    // Crear cada habitación individualmente en una transacción
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 🎯 OPTIMIZACIÓN: Procesar imágenes temporales UNA SOLA VEZ
+      let imagenesCompartidas: any[] = [];
+      const tempImages = (datosHabitacion as any).tempImages;
+      
+      if (tempImages && tempImages.length > 0) {
+        console.log('📸 [HabitacionesService] Optimización activada: procesando imágenes una sola vez...');
+        imagenesCompartidas = await this.procesarImagenesTemporales(tempImages);
+      }
+
+      // Crear cada habitación con las imágenes ya procesadas
+      for (let i = 1; i <= cantidad; i++) {
+        // Agregar número secuencial al nombre para diferenciar habitaciones
+        const nombreConNumero = `${datosHabitacion.nombre} - ${i}`;
+
+        // Preparar datos de habitación con imágenes optimizadas
+        const habitacionData = {
+          ...datosHabitacion,
+          nombre: nombreConNumero,
+          imagenes: imagenesCompartidas, // URLs ya subidas a Cloudinary
+          tempImages: undefined // Remover tempImages para evitar procesamiento duplicado
+        };
+
+        console.log(`🏠 [HabitacionesService] Creando habitación ${i}/${cantidad}:`, {
+          nombre: nombreConNumero,
+          imagenes: imagenesCompartidas.length
+        });
+
+        // Reutilizar el método create existente (ahora usa imagenes en lugar de tempImages)
+        const hospedajeId = (datosHabitacion as any).hospedajeId;
+        const habitacion = await this.create(hospedajeId, habitacionData, userId, userRole);
+        
+        habitacionesCreadas.push(habitacion);
+      }
+
+      await queryRunner.commitTransaction();
+      
+      console.log('✅ [HabitacionesService] Habitaciones múltiples creadas exitosamente:', {
+        cantidad: habitacionesCreadas.length,
+        nombres: habitacionesCreadas.map(h => h.nombre),
+        imagenesCompartidas: imagenesCompartidas.length,
+        optimizacionAplicada: imagenesCompartidas.length > 0,
+        serviciosAsignados: datosHabitacion.servicios?.length || 0,
+        relacionesServiciosCreadas: (datosHabitacion.servicios?.length || 0) * habitacionesCreadas.length
+      });
+
+      return habitacionesCreadas;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error('❌ [HabitacionesService] Error creando habitaciones múltiples:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Procesa FormData para crear múltiples habitaciones con archivos
+   * @param body Datos del formulario
+   * @param files Archivos subidos
+   * @returns DTO procesado para crear múltiples habitaciones
+   */
+  private processFormDataForMultipleRooms(body: any, files: Express.Multer.File[]): CreateMultipleHabitacionesDto {
+    console.log('📸 [HabitacionesService] Procesando FormData con archivos...');
+    
+    try {
+      // Parsear los datos JSON del body
+      const datosHabitacion = JSON.parse(body.datosHabitacion);
+      const cantidad = parseInt(body.cantidad);
+
+      // Procesar archivos de imágenes temporales
+      const tempImages: any[] = [];
+      const filesByIndex: { [key: string]: any } = {};
+      
+      // Agrupar archivos por índice
+      files.forEach(file => {
+        const fieldName = file.fieldname; // Ej: "tempImages[0][file]"
+        const match = fieldName.match(/tempImages\[(\d+)\]\[file\]/);
+        if (match) {
+          const index = match[1];
+          if (!filesByIndex[index]) {
+            filesByIndex[index] = {};
+          }
+          filesByIndex[index].file = file;
+        }
+      });
+
+      // Crear objetos tempImages combinando archivos con metadatos
+      Object.keys(filesByIndex).forEach(index => {
+        const tempImage = {
+          id: body[`tempImages[${index}][id]`],
+          file: filesByIndex[index].file,
+          descripcion: body[`tempImages[${index}][descripcion]`] || '',
+          orden: body[`tempImages[${index}][orden]`] ? parseInt(body[`tempImages[${index}][orden]`]) : 0
+        };
+        tempImages.push(tempImage);
+      });
+
+      // Agregar tempImages a los datos de habitación
+      datosHabitacion.tempImages = tempImages;
+
+      const createMultipleDto = {
+        cantidad,
+        datosHabitacion
+      };
+
+      console.log('✅ [HabitacionesService] FormData procesado:', {
+        cantidad,
+        tempImages: tempImages.length
+      });
+
+      return createMultipleDto;
+    } catch (error) {
+      console.error('❌ [HabitacionesService] Error procesando FormData:', error);
+      throw new Error('Error procesando datos del formulario con archivos');
+    }
+  }
+
+  /**
+   * Crea múltiples habitaciones en un hospedaje con soporte para FormData y JSON
+   * @param hospedajeId ID del hospedaje donde crear las habitaciones
+   * @param body Datos del formulario (puede ser FormData o JSON)
+   * @param files Archivos subidos (opcional)
+   * @param userId ID del usuario que crea las habitaciones
+   * @param userRole Rol del usuario que crea las habitaciones
+   * @returns Array de habitaciones creadas
+   */
+  async createMultipleInHospedajeWithFiles(
+    hospedajeId: string,
+    body: any,
+    files: Express.Multer.File[],
+    userId: number,
+    userRole: string
+  ): Promise<HabitacionEntity[]> {
+    console.log('🏠 [HabitacionesService] Recibida petición múltiple:', {
+      hospedajeId,
+      tieneArchivos: !!(files?.length),
+      cantidadArchivos: files?.length || 0,
+      bodyKeys: Object.keys(body || {})
+    });
+
+    let createMultipleDto: CreateMultipleHabitacionesDto;
+
+    // Determinar si la petición viene como FormData (con archivos) o JSON
+    if (files && files.length > 0) {
+      // Procesar FormData
+      createMultipleDto = this.processFormDataForMultipleRooms(body, files);
+    } else {
+      console.log('📄 [HabitacionesService] Procesando JSON (sin archivos)...');
+      // Procesar JSON normal (sin archivos)
+      createMultipleDto = body as CreateMultipleHabitacionesDto;
+    }
+
+    return this.createMultipleInHospedaje(hospedajeId, createMultipleDto, userId, userRole);
+  }
+
+  /**
+   * Crea múltiples habitaciones en un hospedaje específico
+   * @param hospedajeId ID del hospedaje donde crear las habitaciones
+   * @param createMultipleDto Datos para crear múltiples habitaciones
+   * @param userId ID del usuario que crea las habitaciones
+   * @param userRole Rol del usuario que crea las habitaciones
+   * @returns Array de habitaciones creadas
+   */
+  async createMultipleInHospedaje(
+    hospedajeId: string,
+    createMultipleDto: CreateMultipleHabitacionesDto,
+    userId: number,
+    userRole: string
+  ): Promise<HabitacionEntity[]> {
+    console.log('🏠 [HabitacionesService] Creando múltiples habitaciones en hospedaje:', {
+      hospedajeId,
+      cantidad: createMultipleDto.cantidad
+    });
+
+    // Agregar hospedajeId a los datos de habitación
+    const datosConHospedaje = {
+      ...createMultipleDto,
+      datosHabitacion: {
+        ...createMultipleDto.datosHabitacion,
+        hospedajeId
+      }
+    };
+
+    return this.createMultiple(datosConHospedaje, userId, userRole);
+  }
+
+  /**
+   * Obtiene habitaciones agrupadas por nombre con disponibilidad
+   * @param hospedajeId ID del hospedaje
+   * @param query Parámetros de consulta (fechas, filtros, paginación)
+   * @returns Habitaciones agrupadas con disponibilidad
+   */
+  async findDisponiblesAgrupadasByHospedaje(
+    hospedajeId: string,
+    query: QueryDisponibilidadDto
+  ): Promise<HabitacionesAgrupadasResponseDto> {
+    console.log('📊 [HabitacionesService] Buscando habitaciones agrupadas:', {
+      hospedajeId,
+      fechaInicio: query.fechaInicio,
+      fechaFin: query.fechaFin,
+      personas: query.personas
+    });
+
+    // 1. Verificar que el hospedaje existe
+    await this.hospedajesService.findOne(hospedajeId);
+    
+    // 2. Obtener todas las habitaciones del hospedaje
+    const todasHabitaciones = await this.habitacionesRepository.find({
+      where: { 
+        hospedaje: { id: hospedajeId },
+        active: true
+      },
+      relations: ['tipoHabitacion', 'imagenes', 'servicios', 'servicios.servicio', 'hospedaje']
+    });
+
+    console.log('🏠 [HabitacionesService] Habitaciones encontradas:', {
+      total: todasHabitaciones.length,
+      nombres: todasHabitaciones.map(h => h.nombre)
+    });
+
+    // 3. Verificar disponibilidad si hay fechas
+    let mapaDisponibilidad = new Map<string, boolean>();
+    if (query.fechaInicio && query.fechaFin) {
+      const habitacionIds = todasHabitaciones.map(h => h.id);
+      mapaDisponibilidad = await this.reservasService.verificarDisponibilidadMultiplesHabitaciones(
+        habitacionIds,
+        query.fechaInicio,
+        query.fechaFin
+      );
+    } else {
+      // Sin fechas, todas están disponibles por fechas
+      todasHabitaciones.forEach(h => mapaDisponibilidad.set(h.id, true));
+    }
+
+    // 4. Agrupar por nombre base (sin numeración)
+    const gruposHabitaciones = new Map<string, {
+      habitaciones: HabitacionEntity[];
+      disponibles: HabitacionEntity[];
+    }>();
+
+    todasHabitaciones.forEach(habitacion => {
+      // Extraer nombre base (remover " - 1", " - 2", etc.)
+      const nombreBase = habitacion.nombre.replace(/ - \d+$/, '');
+      
+      if (!gruposHabitaciones.has(nombreBase)) {
+        gruposHabitaciones.set(nombreBase, { habitaciones: [], disponibles: [] });
+      }
+
+      const grupo = gruposHabitaciones.get(nombreBase)!;
+      grupo.habitaciones.push(habitacion);
+
+      // Si está disponible por fechas, agregarla a disponibles
+      if (mapaDisponibilidad.get(habitacion.id)) {
+        grupo.disponibles.push(habitacion);
+      }
+    });
+
+    console.log('📊 [HabitacionesService] Grupos formados:', {
+      totalGrupos: gruposHabitaciones.size,
+      grupos: Array.from(gruposHabitaciones.entries()).map(([nombre, grupo]) => ({
+        nombre,
+        total: grupo.habitaciones.length,
+        disponibles: grupo.disponibles.length
+      }))
+    });
+
+    // 5. Convertir grupos a DTO
+    const habitacionesAgrupadas: HabitacionAgrupadaDto[] = [];
+
+    gruposHabitaciones.forEach((grupo, nombreBase) => {
+      const habitacionRepresentativa = grupo.habitaciones[0]; // Usar primera para datos base
+
+      habitacionesAgrupadas.push({
+        id: habitacionRepresentativa.id, // ID representativo
+        nombre: nombreBase, // Nombre sin numeración
+        descripcionCorta: habitacionRepresentativa.descripcionCorta,
+        descripcionLarga: habitacionRepresentativa.descripcionLarga,
+        capacidad: habitacionRepresentativa.capacidad,
+        precioBase: habitacionRepresentativa.precioBase,
+        cantidadTotal: grupo.habitaciones.length,
+        cantidadDisponible: grupo.disponibles.length,
+        habitacionesDisponiblesIds: grupo.disponibles.map(h => h.id),
+        tipoHabitacion: habitacionRepresentativa.tipoHabitacion,
+        imagenes: habitacionRepresentativa.imagenes,
+        servicios: habitacionRepresentativa.servicios,
+        hospedaje: habitacionRepresentativa.hospedaje
+      });
+    });
+
+    // 6. Aplicar filtros adicionales
+    let habitacionesFiltradas = habitacionesAgrupadas;
+
+    if (query.personas && query.personas > 0) {
+      habitacionesFiltradas = habitacionesFiltradas.filter(h => h.capacidad >= query.personas!);
+    }
+
+    if (query.precioMin !== undefined) {
+      habitacionesFiltradas = habitacionesFiltradas.filter(h => h.precioBase >= query.precioMin!);
+    }
+
+    if (query.precioMax !== undefined) {
+      habitacionesFiltradas = habitacionesFiltradas.filter(h => h.precioBase <= query.precioMax!);
+    }
+
+    if (query.tipoHabitacionId) {
+      habitacionesFiltradas = habitacionesFiltradas.filter(h => h.tipoHabitacion?.id === query.tipoHabitacionId);
+    }
+
+    console.log('🔍 [HabitacionesService] Habitaciones filtradas:', {
+      antesDelFiltro: habitacionesAgrupadas.length,
+      despuesDelFiltro: habitacionesFiltradas.length
+    });
+
+    // 7. Aplicar paginación
+    const { page = 1, limit = 10 } = query;
+    const total = habitacionesFiltradas.length;
+    const habitacionesPaginadas = habitacionesFiltradas.slice(
+      (page - 1) * limit,
+      page * limit
+    );
+
+    const response = {
+      data: habitacionesPaginadas,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+
+    console.log('✅ [HabitacionesService] Respuesta agrupada generada:', {
+      totalGrupos: response.meta.total,
+      gruposPaginados: response.data.length,
+      pagina: response.meta.page
+    });
+
+    return response;
   }
 }

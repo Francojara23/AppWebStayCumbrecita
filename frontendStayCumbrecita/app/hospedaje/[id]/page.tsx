@@ -11,7 +11,7 @@ import HotelTabs from "@/components/hospedaje/tabs-container"
 import BookingForm from "@/components/hospedaje/booking-form"
 import ChatButton from "@/components/chatbot/chat-button"
 import HotelGallery from "@/components/hospedaje/hotel-gallery"
-import { useHospedaje, useHabitacionesHospedaje, useOpinionesHospedaje, useServiciosHospedaje, useServiciosHabitacion, useDisponibilidadHabitaciones } from "@/hooks/use-api"
+import { useHospedaje, useHabitacionesHospedaje, useOpinionesHospedaje, useServiciosHospedaje, useServiciosHabitacion, useDisponibilidadHabitaciones, useHabitacionesAgrupadasHospedaje } from "@/hooks/use-api"
 import { authUtils } from "@/lib/api/client"
 import { Loader2 } from "lucide-react"
 import { getClientApiUrl } from "@/lib/utils/api-urls"
@@ -106,6 +106,12 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
   // Hooks para obtener datos del backend
   const { data: hospedaje, isLoading: isLoadingHospedaje, error: errorHospedaje } = useHospedaje(id)
   const { data: habitaciones, isLoading: isLoadingHabitaciones } = useHabitacionesHospedaje(id)
+  const { data: habitacionesAgrupadas, isLoading: isLoadingHabitacionesAgrupadas } = useHabitacionesAgrupadasHospedaje(
+    id, 
+    fechaInicio || undefined, 
+    fechaFin || undefined, 
+    huespedes
+  )
   const { data: opiniones, isLoading: isLoadingOpiniones } = useOpinionesHospedaje(id)
   const { data: servicios, isLoading: isLoadingServicios } = useServiciosHospedaje(id)
   
@@ -289,20 +295,56 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  // Función para alternar selección de habitación (actualiza el sidebar)
+  // Función para alternar selección de habitación (actualizada para habitaciones agrupadas)
   const handleRoomSelection = (roomId: string) => {
-    const room = habitaciones?.data?.find(h => h.id === roomId)
+    const room = hotelRooms.find((h: any) => h.id === roomId)
     if (room) {
+      const quantity = roomQuantities[roomId] || 1;
+      
       setSelectedRooms(prev => {
         const newSelected = { ...prev }
         if (newSelected[roomId]) {
           // Si ya está seleccionada, la removemos
           delete newSelected[roomId]
-          console.log('🔍 Habitación removida del sidebar:', room.nombre)
+          console.log('🏠 [handleRoomSelection] Habitación removida del sidebar:', room.name)
         } else {
-          // Si no está seleccionada, la agregamos
-          newSelected[roomId] = room
-          console.log('🔍 Habitación agregada al sidebar:', room.nombre)
+          // Si no está seleccionada, la agregamos con lógica para habitaciones múltiples
+          if (room.esGrupo) {
+            // Para habitaciones agrupadas, seleccionar habitaciones individuales específicas
+            const habitacionesSeleccionadas = room.habitacionesIds?.slice(0, quantity) || [];
+            
+            newSelected[roomId] = {
+              ...room,
+              cantidadSeleccionada: quantity,
+              habitacionesIndividualesIds: habitacionesSeleccionadas,
+              // Para cada habitación individual seleccionada
+              reservaLineas: habitacionesSeleccionadas.map((habId: string) => ({
+                habitacionId: habId,
+                precioBase: room.price,
+                personas: Math.ceil(huespedes / quantity) // Distribuir huéspedes
+              }))
+            };
+            
+            console.log('🏠 [handleRoomSelection] Grupo de habitaciones agregado:', {
+              nombre: room.name,
+              cantidad: quantity,
+              habitacionesIds: habitacionesSeleccionadas
+            });
+          } else {
+            // Para habitaciones individuales (lógica actual)
+            newSelected[roomId] = {
+              ...room,
+              cantidadSeleccionada: 1,
+              habitacionesIndividualesIds: [room.id],
+              reservaLineas: [{
+                habitacionId: room.id,
+                precioBase: room.price,
+                personas: huespedes
+              }]
+            };
+            
+            console.log('🏠 [handleRoomSelection] Habitación individual agregada:', room.name);
+          }
         }
         return newSelected
       })
@@ -418,47 +460,61 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     icon: hospedajeServicio.servicio.iconoUrl || "Settings"
   })) || []
 
-  // Procesar habitaciones para el formato esperado y aplicar verificaciones de disponibilidad y capacidad
-  const hotelRooms = habitacionesConServiciosData?.map((habitacion: any) => {
-    // Verificar disponibilidad por fechas
-    const isAvailableByDate = fechaInicio && fechaFin 
-      ? habitacionesDisponibles.includes(habitacion.id)
-      : true // Si no hay fechas, consideramos disponible por fechas
+  // Procesar habitaciones agrupadas para el formato esperado RoomType
+  const hotelRooms = habitacionesAgrupadas?.data?.map((habitacionGrupo: any) => {
+    console.log('🏠 [HospedajePage] Procesando grupo de habitaciones:', {
+      nombre: habitacionGrupo.nombre,
+      cantidadTotal: habitacionGrupo.cantidadTotal,
+      cantidadDisponible: habitacionGrupo.cantidadDisponible,
+      capacidad: habitacionGrupo.capacidad
+    });
+
+    // Verificar disponibilidad
+    const isAvailable = habitacionGrupo.cantidadDisponible > 0;
     
-    // Verificar disponibilidad por capacidad de huéspedes (misma lógica que en /search)
-    const isAvailableByCapacity = habitacion.capacidad >= huespedes
+    // Verificar disponibilidad por capacidad de huéspedes
+    const isAvailableByCapacity = habitacionGrupo.capacidad >= huespedes;
     
-    // La habitación está disponible solo si cumple AMBOS criterios
-    const isAvailable = isAvailableByDate && isAvailableByCapacity
-    
-    // Determinar el motivo de no disponibilidad para mostrar mensaje específico
-    let unavailableReason = null
-    if (!isAvailable) {
-      if (!isAvailableByDate && !isAvailableByCapacity) {
-        unavailableReason = 'dates_and_capacity'
-      } else if (!isAvailableByDate) {
-        unavailableReason = 'dates'
+    // Determinar el motivo de no disponibilidad
+    let unavailableReason = null;
+    if (!isAvailable || !isAvailableByCapacity) {
+      if (!isAvailable && !isAvailableByCapacity) {
+        unavailableReason = 'dates_and_capacity';
+      } else if (!isAvailable) {
+        unavailableReason = 'dates';
       } else if (!isAvailableByCapacity) {
-        unavailableReason = 'capacity'
+        unavailableReason = 'capacity';
       }
     }
     
+    const finalAvailability = isAvailable && isAvailableByCapacity;
+    
     return {
-      id: habitacion.id,
-      name: habitacion.nombre,
-      description: habitacion.descripcionCorta || habitacion.descripcionLarga || "Sin descripción disponible",
-      descripcionLarga: habitacion.descripcionLarga, // Incluir descripción larga para el modal
-      capacity: habitacion.capacidad,
-      price: habitacion.precioBase,
-      available: isAvailable ? 1 : 0, // 1 si está disponible, 0 si no
-      isAvailable, // Flag adicional para controles más granulares
-      unavailableReason, // Motivo específico de no disponibilidad
-      image: habitacion.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.[0]?.url || "/mountain-cabin-retreat.png",
-      services: (habitacion.serviciosHabitacion || []).map((servicioHab: any) => ({
+      id: habitacionGrupo.id, // ID representativo del grupo
+      name: habitacionGrupo.nombre, // Nombre sin numeración
+      description: habitacionGrupo.descripcionCorta || habitacionGrupo.descripcionLarga || "Sin descripción disponible",
+      descripcionLarga: habitacionGrupo.descripcionLarga,
+      capacity: habitacionGrupo.capacidad,
+      price: habitacionGrupo.precioBase,
+      
+      // Campos de compatibilidad
+      available: habitacionGrupo.cantidadDisponible || 0,
+      isAvailable: finalAvailability,
+      unavailableReason,
+      
+      // NUEVOS campos para habitaciones agrupadas
+      cantidadTotal: habitacionGrupo.cantidadTotal,
+      cantidadDisponible: habitacionGrupo.cantidadDisponible,
+      habitacionesIds: habitacionGrupo.habitacionesDisponiblesIds || [],
+      esGrupo: habitacionGrupo.cantidadTotal > 1,
+      
+      // Información visual
+      image: habitacionGrupo.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.[0]?.url || "/mountain-cabin-retreat.png",
+      services: (habitacionGrupo.servicios || []).map((servicioHab: any) => ({
         name: servicioHab.servicio?.nombre || 'Servicio',
         description: servicioHab.servicio?.descripcion || ''
       })),
-      images: habitacion.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.map((img: any) => img.url) || ["/mountain-cabin-retreat.png"]
+      images: habitacionGrupo.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.map((img: any) => img.url) || ["/mountain-cabin-retreat.png"]
     }
   }) || []
 

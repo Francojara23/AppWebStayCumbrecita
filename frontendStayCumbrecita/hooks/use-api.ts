@@ -794,6 +794,52 @@ export function useDisponibilidadHabitaciones(
 }
 
 // ========================
+// HOOK PARA HABITACIONES AGRUPADAS
+// ========================
+
+export function useHabitacionesAgrupadasHospedaje(
+  hospedajeId: string, 
+  fechaInicio?: string, 
+  fechaFin?: string,
+  personas?: number
+) {
+  return useQuery({
+    queryKey: ['habitaciones', 'agrupadas', hospedajeId, fechaInicio, fechaFin, personas],
+    queryFn: async () => {
+      console.log('🔍 [useHabitacionesAgrupadasHospedaje] Consultando habitaciones agrupadas:', {
+        hospedajeId,
+        fechaInicio,
+        fechaFin,
+        personas
+      });
+
+      const params = new URLSearchParams();
+      if (fechaInicio) params.append('fechaInicio', fechaInicio);
+      if (fechaFin) params.append('fechaFin', fechaFin);
+      if (personas && personas > 0) params.append('personas', personas.toString());
+      params.append('limit', '1000'); // Sin paginación para este caso
+
+      const queryString = params.toString();
+      const url = `/habitaciones/hospedajes/${hospedajeId}/disponibilidad-agrupada${queryString ? `?${queryString}` : ''}`;
+      
+      console.log('🌐 [useHabitacionesAgrupadasHospedaje] URL de consulta:', url);
+
+      const response = await api.get(url);
+      
+      console.log('✅ [useHabitacionesAgrupadasHospedaje] Respuesta recibida:', {
+        totalGrupos: response.data?.meta?.total || 0,
+        grupos: response.data?.data?.length || 0
+      });
+
+      return response.data;
+    },
+    enabled: !!hospedajeId,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos (antes era cacheTime)
+  });
+}
+
+// ========================
 // HOOK PARA BUSCAR EMPLEADO POR DNI
 // ========================
 

@@ -129,9 +129,14 @@ export default function AltaHospedajeForm() {
 
   // Helper para crear URL de imagen de manera segura
   const createImageUrl = (file: File | null | undefined): string => {
-    if (!file) return ''
+    if (!file || !(file instanceof File)) {
+      console.warn('Invalid file provided to createImageUrl:', file)
+      return ''
+    }
     try {
-      return URL.createObjectURL(file)
+      const url = URL.createObjectURL(file)
+      // No revocar inmediatamente, dejar que React maneje el lifecycle
+      return url
     } catch (error) {
       console.error('Error creating object URL:', error)
       return ''
@@ -213,17 +218,18 @@ export default function AltaHospedajeForm() {
 
   // Cleanup de URLs de objetos cuando el componente se desmonte
   useEffect(() => {
+    const createdUrls = new Set<string>()
+    
     return () => {
-      // Limpiar todas las URLs de objetos creadas para las imágenes
-      formData.tempImages.forEach(image => {
-        if (image.file) {
-          try {
-            URL.revokeObjectURL(URL.createObjectURL(image.file))
-          } catch (error) {
-            console.error('Error revoking object URL:', error)
-          }
+      // Limpiar solo las URLs que fueron creadas y almacenadas
+      createdUrls.forEach(url => {
+        try {
+          URL.revokeObjectURL(url)
+        } catch (error) {
+          console.error('Error revoking object URL:', error)
         }
       })
+      createdUrls.clear()
     }
   }, []) // Solo se ejecuta al desmontar
 
@@ -337,7 +343,7 @@ export default function AltaHospedajeForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div>
                 <Label htmlFor="tipo">Tipo *</Label>
                 <Select 
@@ -373,21 +379,14 @@ export default function AltaHospedajeForm() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="habitaciones">Cantidad de habitaciones</Label>
-                <Select>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Seleccionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[...Array(20)].map((_, i) => (
-                      <SelectItem key={i} value={(i + 1).toString()}>
-                        {i + 1}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            </div>
+            
+            {/* Nota informativa sobre habitaciones */}
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800">
+                <strong>📌 Nota:</strong> Las habitaciones se agregan después de crear el hospedaje. 
+                Ve a la sección "Habitaciones" en la lista de hospedajes para crear las habitaciones individuales o múltiples.
+              </p>
             </div>
           </section>
 
@@ -529,15 +528,6 @@ export default function AltaHospedajeForm() {
                                 src={createImageUrl(image.file)}
                                 alt={`Imagen ${displayIndex + 1}`}
                                 className="w-full h-full object-cover"
-                                onLoad={(e) => {
-                                  // Limpiar la URL cuando la imagen se haya cargado para evitar memory leaks
-                                  const src = e.currentTarget?.src
-                                  if (src) {
-                                    setTimeout(() => {
-                                      URL.revokeObjectURL(src)
-                                    }, 100)
-                                  }
-                                }}
                                 onError={(e) => {
                                   console.error('Error loading image:', e)
                                   e.currentTarget.style.display = 'none'

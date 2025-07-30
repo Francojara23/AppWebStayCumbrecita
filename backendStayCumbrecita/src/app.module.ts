@@ -23,8 +23,6 @@ import { OpinionesModule } from "./opiniones/opiniones.module";
 import { NotificacionesModule } from "./notificaciones/notificaciones.module";
 import { ReportesModule } from "./reportes/reportes.module";
 import { UploadsModule } from "./uploads/uploads.module";
-import { ImagesModule } from "./uploads/images/images.module";
-import { DocumentsModule } from "./uploads/documents/documents.module";
 import { MailModule } from "./mail/mail.module";
 import { MailService } from "./mail/mail.service";
 
@@ -55,6 +53,10 @@ import { MailService } from "./mail/mail.service";
         synchronize: true, // Sincroniza el esquema de la base de datos (solo para desarrollo)
       }),
     }),
+    // Configuración de uploads PRIMERO (providers de Cloudinary)
+    UploadsModule,
+    
+    // Módulos de negocio
     UsersModule,
     RolesModule,
     AuthModule,
@@ -74,9 +76,6 @@ import { MailService } from "./mail/mail.service";
     ConsultasModule,
     OpinionesModule,
     NotificacionesModule,
-    UploadsModule,
-    ImagesModule,
-    DocumentsModule,
     MailModule,
   ],
   controllers: [AppController],

@@ -143,17 +143,22 @@ export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, han
                       className="px-3 py-1 border-l hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => {
                         const currentQty = roomQuantities[room.id] || 1
-                        if (currentQty < room.available) {
+                        const maxQuantity = room.esGrupo ? (room.cantidadDisponible || 0) : room.available;
+                        if (currentQty < maxQuantity) {
                           updateQuantity(room.id, currentQty + 1)
                         }
                       }}
-                      disabled={(roomQuantities[room.id] || 1) >= room.available || room.isAvailable === false}
+                      disabled={(roomQuantities[room.id] || 1) >= (room.esGrupo ? (room.cantidadDisponible || 0) : room.available) || room.isAvailable === false}
                     >
                       +
                     </button>
                   </div>
                   <span className="ml-3 text-sm text-gray-500">
-                    {room.isAvailable === false ? "No disponible" : `${room.available} disponible${room.available !== 1 ? "s" : ""}`}
+                    {room.isAvailable === false ? "No disponible" : (
+                      room.esGrupo 
+                        ? `${room.cantidadDisponible} disponible${room.cantidadDisponible !== 1 ? "s" : ""} de ${room.cantidadTotal} total${room.cantidadTotal !== 1 ? "es" : ""}`
+                        : `${room.available} disponible${room.available !== 1 ? "s" : ""}`
+                    )}
                   </span>
                 </div>
                 <div className="flex gap-2">

@@ -49,6 +49,7 @@ export class ReservasService {
     private dataSource: DataSource,
     @Inject(forwardRef(() => HabitacionesService))
     private habitacionesService: HabitacionesService,
+    @Inject(forwardRef(() => HospedajesService))
     private hospedajesService: HospedajesService,
     private notificacionesService: NotificacionesService,
     private qrCodeService: QrCodeService,

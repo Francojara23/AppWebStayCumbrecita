@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { HospedajesService } from "./hospedajes.service";
 import { HospedajesController } from "./hospedajes.controller";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -13,6 +13,7 @@ import { HabitacionEntity } from "src/habitaciones/entidades/habitacion.entity";
 import { ImagesModule } from "../uploads/images/images.module";
 import { DocumentsModule } from "../uploads/documents/documents.module";
 import { EmpleadosModule } from "../empleados/empleados.module";
+import { PublicidadModule } from "../publicidad/publicidad.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EmpleadosModule } from "../empleados/empleados.module";
     ImagesModule,
     DocumentsModule,
     EmpleadosModule,
+    forwardRef(() => PublicidadModule),
   ],
   controllers: [HospedajesController],
   providers: [HospedajesService],

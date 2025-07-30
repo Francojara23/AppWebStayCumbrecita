@@ -60,4 +60,18 @@ export class CreateHabitacionDto {
   @Type(() => ImagenHabitacionDto)
   @IsOptional()
   imagenes?: ImagenHabitacionDto[];
+
+  @ApiProperty({ required: false, description: 'Imágenes temporales a procesar' })
+  @IsOptional()
+  tempImages?: any[];
+
+  @ApiProperty({ 
+    description: "IDs de servicios a asignar a la habitación",
+    type: [String],
+    required: false
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  servicios?: string[];
 }

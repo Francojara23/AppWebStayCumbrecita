@@ -15,6 +15,7 @@ import { PriceRulesBuilder } from "@/components/price-rules-builder"
 import { getTiposHabitacion, type TipoHabitacion } from "@/app/actions/types/getTiposHabitacion"
 import { getServicesByType, type Servicio } from "@/app/actions/services/getServicesByType"
 import { createHabitacionWithFiles } from "@/app/actions/habitaciones/createHabitacionWithFiles"
+import { createMultipleHabitacionesWithFiles } from "@/app/actions/rooms/createMultipleRooms"
 import { TempImage } from "@/lib/types/habitacion"
 import ImageUploadModal from "@/components/ui/image-upload-modal"
 import { useUserPermissions } from "@/hooks/use-user-permissions"
@@ -51,6 +52,7 @@ export default function AgregarHabitacionPage() {
     longDescription: "",
     type: "",
     capacity: "",
+    cantidad: "1", // NUEVO: Campo para cantidad de habitaciones
     photos: [] as TempImage[],
     services: [] as string[],
     ajustesPrecio: [] as any[],
@@ -257,6 +259,17 @@ export default function AgregarHabitacionPage() {
       return
     }
 
+    // Validar cantidad de habitaciones
+    const cantidad = parseInt(formData.cantidad) || 1
+    if (cantidad < 1 || cantidad > 50) {
+      toast({
+        title: "Error",
+        description: "La cantidad debe estar entre 1 y 50 habitaciones",
+        variant: "destructive",
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -273,7 +286,19 @@ export default function AgregarHabitacionPage() {
         ajustesPrecio: formData.ajustesPrecio
       }
 
-      const result = await createHabitacionWithFiles(hotelId, habitacionData)
+      let result;
+      
+      if (cantidad === 1) {
+        // Crear habitación individual (lógica actual)
+        result = await createHabitacionWithFiles(hotelId, habitacionData)
+      } else {
+        // Crear múltiples habitaciones idénticas (NUEVA lógica)
+        const multipleData = {
+          cantidad,
+          datosHabitacion: habitacionData
+        }
+        result = await createMultipleHabitacionesWithFiles(hotelId, multipleData)
+      }
 
       if (result.success) {
         toast({
@@ -365,7 +390,7 @@ export default function AgregarHabitacionPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div>
                 <Label htmlFor="tipo">Tipo</Label>
                 <Select 
@@ -399,6 +424,25 @@ export default function AgregarHabitacionPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="cantidad">Cantidad de habitaciones a crear</Label>
+                <Input
+                  id="cantidad"
+                  type="number"
+                  min="1"
+                  max="50"
+                  placeholder="1"
+                  className="mt-1"
+                  value={formData.cantidad}
+                  onChange={(e) => handleInputChange("cantidad", (parseInt(e.target.value) || 1).toString())}
+                />
+                                 <p className="text-xs text-gray-500 mt-1">
+                   {parseInt(formData.cantidad) === 1 
+                     ? "Se creará 1 habitación individual" 
+                     : `Se crearán ${formData.cantidad} habitaciones idénticas`
+                   }
+                 </p>
               </div>
             </div>
           </section>

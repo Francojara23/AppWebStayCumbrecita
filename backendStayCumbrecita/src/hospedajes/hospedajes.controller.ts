@@ -156,7 +156,7 @@ export class HospedajesController {
   @ApiResponse({ status: 201, description: "Imágenes agregadas exitosamente" })
   @ApiResponse({ status: 403, description: "No tienes permiso para agregar imágenes a este hospedaje" })
   @ApiResponse({ status: 404, description: "Hospedaje no encontrado" })
-  @UseInterceptors(FilesInterceptor('files', 10)) // máximo 10 archivos
+  @UseInterceptors(FilesInterceptor('files', 20)) // máximo 20 archivos
   @ApiConsumes('multipart/form-data')
   addMultipleImagenes(
     @Param("id") id: string,

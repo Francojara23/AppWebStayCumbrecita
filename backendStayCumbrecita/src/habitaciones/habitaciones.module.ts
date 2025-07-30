@@ -12,6 +12,7 @@ import { ImagesModule } from "../uploads/images/images.module";
 import { HospedajesModule } from "../hospedajes/hospedajes.module";
 import { EmpleadosModule } from "../empleados/empleados.module";
 import { ReservasModule } from "../reservas/reservas.module";
+import { HabitacionServicio } from "../servicios/entidades/habitacion-servicio.entity";
 
 @Module({
   imports: [
@@ -21,9 +22,10 @@ import { ReservasModule } from "../reservas/reservas.module";
       TipoHabitacionEntity,
       HistorialPrecioEntity,
       Hospedaje,
+      HabitacionServicio,
     ]),
     ImagesModule,
-    HospedajesModule,
+    forwardRef(() => HospedajesModule),
     EmpleadosModule,
     forwardRef(() => ReservasModule),
   ],

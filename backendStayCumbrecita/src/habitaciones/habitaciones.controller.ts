@@ -7,6 +7,8 @@ import { QueryDisponibilidadDto } from './dto/query-disponibilidad.dto';
 import { QueryDisponibilidadMesDto } from './dto/query-disponibilidad-mes.dto';
 import { QueryDisponibilidadMesesDto } from './dto/query-disponibilidad-meses.dto';
 import { DisponibilidadMensualResponseDto, DisponibilidadMultipleMesesResponseDto } from './dto/disponibilidad-mensual-response.dto';
+
+import { HabitacionesAgrupadasResponseDto } from './dto/habitacion-agrupada-response.dto';
 import { PrecioBaseDto } from './dto/precio-base.dto';
 import { AjustePrecioDto } from './dto/ajuste-precio.dto';
 import { UpdateServicioDto } from './dto/update-servicio.dto';
@@ -75,6 +77,23 @@ export class HabitacionesController {
   ) {
     return this.habitacionesService.findDisponibilidadMultiplesMeses(hospedajeId, query);
   }
+
+  @Get('hospedajes/:hospedajeId/disponibilidad-agrupada')
+  @ApiOperation({ summary: 'Obtener habitaciones agrupadas por nombre con disponibilidad' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Habitaciones agrupadas obtenidas exitosamente',
+    type: HabitacionesAgrupadasResponseDto
+  })
+  @ApiResponse({ status: 404, description: 'Hospedaje no encontrado' })
+  findDisponiblesAgrupadasByHospedaje(
+    @Param('hospedajeId') hospedajeId: string,
+    @Query() query: QueryDisponibilidadDto,
+  ) {
+    return this.habitacionesService.findDisponiblesAgrupadasByHospedaje(hospedajeId, query);
+  }
+
+
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de una habitación' })

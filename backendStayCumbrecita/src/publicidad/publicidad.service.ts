@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, LessThan } from 'typeorm';
 import { Publicidad, EstadoPublicidad } from './entidades/publicidad.entity';
@@ -45,6 +45,7 @@ export class PublicidadService {
     @InjectRepository(Pago)
     private pagosRepository: Repository<Pago>,
     private pagosService: PagosService,
+    @Inject(forwardRef(() => HospedajesService))
     private hospedajesService: HospedajesService,
     private empleadosService: EmpleadosService,
     private mailService: MailService,

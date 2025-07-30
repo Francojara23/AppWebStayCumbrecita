@@ -5,6 +5,9 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
+  Inject,
+  forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -20,6 +23,7 @@ import { EstadoHospedaje } from "./entidades/hospedaje.entity";
 import { ImagesService } from "../uploads/images/images.service";
 import { DocumentsService } from "../uploads/documents/documents.service";
 import { EmpleadosService } from "../empleados/empleados.service";
+import { PublicidadService } from "../publicidad/publicidad.service";
 
 /**
  * Servicio que maneja la lógica de negocio relacionada con los hospedajes
@@ -41,7 +45,30 @@ export class HospedajesService {
     private imagesService: ImagesService,
     private documentsService: DocumentsService,
     private empleadosService: EmpleadosService,
+    @Inject(forwardRef(() => PublicidadService))
+    private publicidadService: PublicidadService,
   ) {}
+
+  /**
+   * Obtiene los IDs de hospedajes que tienen publicidad activa
+   * @returns Set de IDs de hospedajes con publicidad activa y vigente
+   */
+  private async getHospedajesConPublicidadActiva(): Promise<Set<string>> {
+    try {
+      const publicidadesActivas = await this.publicidadService.findAll(
+        undefined, // usuarioId: obtener de todos los usuarios
+        undefined, // hospedajeId: obtener de todos los hospedajes  
+        true       // activas: solo publicidades activas y vigentes
+      );
+      
+      // Extraer IDs de hospedajes únicos
+      return new Set(publicidadesActivas.map(p => p.hospedaje.id));
+    } catch (error) {
+      console.error('Error obteniendo hospedajes con publicidad activa:', error);
+      // En caso de error, devolver conjunto vacío para que no rompa la funcionalidad
+      return new Set();
+    }
+  }
 
   /**
    * Crea un nuevo hospedaje asociado a un propietario
@@ -214,38 +241,87 @@ export class HospedajesService {
       }
       
       // PASO 3: Si aún faltan hospedajes, completar aleatoriamente
-      if (hospedajesDestacados.length < limit) {
-        console.log('🔍 PASO 3: Completando aleatoriamente hasta el límite...');
+      // Primero calcular cuántos hospedajes existen en total
+      const totalHospedajesExistentes = await this.hospedajesRepository
+        .createQueryBuilder("hospedaje")
+        .where("hospedaje.estado = :estadoActivo", {
+          estadoActivo: EstadoHospedaje.ACTIVO,
+        })
+        .andWhere("hospedaje.deletedAt IS NULL")
+        .getCount();
+
+      console.log('🔍 Total hospedajes existentes:', totalHospedajesExistentes);
+      console.log('🔍 Hospedajes destacados actuales:', hospedajesDestacados.length);
+      
+      // El límite real debe ser el menor entre el limit solicitado y el total existente
+      const limitRealFinal = Math.min(limit, totalHospedajesExistentes);
+      console.log('🔍 Límite real final:', limitRealFinal);
+
+      if (hospedajesDestacados.length < limitRealFinal) {
+        console.log('🔍 PASO 3: Completando aleatoriamente hasta el límite real...');
         
-        const faltantes = limit - hospedajesDestacados.length;
-        const hospedajesRestantes = await this.hospedajesRepository
+        const faltantes = limitRealFinal - hospedajesDestacados.length;
+        console.log('🔍 PASO 3: Necesitamos', faltantes, 'hospedajes más');
+        console.log('🔍 PASO 3: hospedajesUsados:', Array.from(hospedajesUsados));
+        
+        // Primero obtener todos los IDs disponibles (consulta simple sin JOINs)
+        const idsQuery = this.hospedajesRepository
           .createQueryBuilder("hospedaje")
-          .leftJoinAndSelect("hospedaje.tipoHotel", "tipoHotel")
-          .leftJoinAndSelect("hospedaje.imagenes", "imagenes")
-          .leftJoinAndSelect("hospedaje.habitaciones", "habitaciones")
+          .select("hospedaje.id", "id") // Usar alias explícito 
           .where("hospedaje.estado = :estadoActivo", {
             estadoActivo: EstadoHospedaje.ACTIVO,
           })
-          .andWhere("hospedaje.id NOT IN (:...usados)", {
-            usados: hospedajesUsados.size > 0 ? Array.from(hospedajesUsados) : ['00000000-0000-0000-0000-000000000000'],
-          })
-          .orderBy("hospedaje.createdAt", "DESC")
-          .limit(faltantes)
-          .getMany();
-        
-        console.log('🔍 Hospedajes aleatorios encontrados:', hospedajesRestantes.length);
-        
-        hospedajesRestantes.forEach(hospedaje => {
-          hospedajesDestacados.push({
-            ...hospedaje,
-            estadisticas: {
-              montoPublicidad: 0,
-              promedioCalificacion: 4.0,
-              totalOpiniones: 0,
-              esDestacado: false,
-            },
+          .andWhere("hospedaje.deletedAt IS NULL");
+
+        // Proteger NOT IN cuando no hay IDs usados
+        if (hospedajesUsados.size > 0) {
+          idsQuery.andWhere("hospedaje.id NOT IN (:...usados)", {
+            usados: Array.from(hospedajesUsados),
           });
-        });
+        }
+
+        const idsDisponibles = await idsQuery
+          .orderBy("RANDOM()") // Orden verdaderamente aleatorio
+          .getRawMany();
+        
+        console.log('🔍 PASO 3: IDs disponibles:', idsDisponibles.length);
+        console.log('🔍 PASO 3: IDs encontrados:', idsDisponibles.map(r => r.id.substring(0,8)));
+
+        if (idsDisponibles.length > 0) {
+          // Limitar a los que necesitamos
+          const idsParaBuscar = idsDisponibles
+            .slice(0, Math.min(faltantes, idsDisponibles.length))
+            .map(r => r.id); // Usar el alias correcto
+          
+          console.log('🔍 PASO 3: Buscando hospedajes con IDs:', idsParaBuscar.map(id => id.substring(0,8)));
+
+          // Ahora obtener los hospedajes completos con sus relaciones
+          const hospedajesRestantes = await this.hospedajesRepository
+            .createQueryBuilder("hospedaje")
+            .leftJoinAndSelect("hospedaje.tipoHotel", "tipoHotel")
+            .leftJoinAndSelect("hospedaje.imagenes", "imagenes")
+            .leftJoinAndSelect("hospedaje.habitaciones", "habitaciones")
+            .where("hospedaje.id IN (:...ids)", { ids: idsParaBuscar })
+            .orderBy("hospedaje.createdAt", "DESC")
+            .getMany();
+          
+          console.log('🔍 Hospedajes aleatorios encontrados:', hospedajesRestantes.length);
+          console.log('🔍 Hospedajes aleatorios:', hospedajesRestantes.map(h => `${h.nombre} (${h.id.substring(0,8)}...)`));
+          
+          hospedajesRestantes.forEach(hospedaje => {
+            hospedajesDestacados.push({
+              ...hospedaje,
+              estadisticas: {
+                montoPublicidad: 0,
+                promedioCalificacion: 4.0,
+                totalOpiniones: 0,
+                esDestacado: false,
+              },
+            });
+          });
+        } else {
+          console.log('🔍 PASO 3: No se encontraron hospedajes disponibles');
+        }
       }
       
       console.log('✅ Total de hospedajes destacados:', hospedajesDestacados.length);
@@ -290,6 +366,9 @@ export class HospedajesService {
     const { page = 1, limit = 10, tipoHotelId, estado, search } = filters;
     const skip = (page - 1) * limit;
 
+    // Obtener hospedajes con publicidad activa para mapear campo featured
+    const hospedajesConPublicidad = await this.getHospedajesConPublicidadActiva();
+
     const queryBuilder = this.hospedajesRepository
       .createQueryBuilder("hospedaje")
       .leftJoinAndSelect("hospedaje.tipoHotel", "tipoHotel")
@@ -331,8 +410,20 @@ export class HospedajesService {
       hospedajes: hospedajes.map(h => ({ nombre: h.nombre, estado: h.estado }))
     });
 
+    // Mapear hospedajes agregando el campo featured basado en publicidad activa
+    const hospedajesConFeatured = hospedajes.map(hospedaje => ({
+      ...hospedaje,
+      featured: hospedajesConPublicidad.has(hospedaje.id)
+    }));
+
+    console.log('✨ Hospedajes con campo featured:', {
+      total: hospedajesConFeatured.length,
+      conPublicidad: hospedajesConFeatured.filter(h => h.featured).length,
+      sinPublicidad: hospedajesConFeatured.filter(h => !h.featured).length
+    });
+
     return {
-      data: hospedajes,
+      data: hospedajesConFeatured,
       meta: {
         total,
         page,
@@ -596,29 +687,79 @@ export class HospedajesService {
       ordenesArray = [];
     }
 
-    // Subir todas las imágenes en paralelo
+    // Subir todas las imágenes en paralelo con manejo de errores mejorado
     const uploadPromises = files.map(async (file, index) => {
-      // Subir imagen a Cloudinary
-      const cloudinaryResponse = await this.imagesService.uploadFile(
-        file,
-        "hospedajes",
-      );
+      try {
+        console.log(`📤 Subiendo imagen ${index + 1}/${files.length}: ${file.originalname}`);
+        
+        // Subir imagen a Cloudinary
+        const cloudinaryResponse = await this.imagesService.uploadFile(
+          file,
+          "hospedajes",
+        );
 
-      // Crear relación en la base de datos
-      const imagenHospedaje = this.imagenesHospedajeRepository.create({
-        hospedaje,
-        url: cloudinaryResponse.secure_url,
-        publicId: cloudinaryResponse.public_id,
-        descripcion: descripcionesArray[index] || undefined,
-        orden: ordenesArray[index] || undefined,
-        formato: cloudinaryResponse.format,
-        tamaño: cloudinaryResponse.bytes,
-      });
+        // Crear relación en la base de datos
+        const imagenHospedaje = this.imagenesHospedajeRepository.create({
+          hospedaje,
+          url: cloudinaryResponse.secure_url,
+          publicId: cloudinaryResponse.public_id,
+          descripcion: descripcionesArray[index] || undefined,
+          orden: ordenesArray[index] || undefined,
+          formato: cloudinaryResponse.format,
+          tamaño: cloudinaryResponse.bytes,
+        });
 
-      return this.imagenesHospedajeRepository.save(imagenHospedaje);
+        const savedImage = await this.imagenesHospedajeRepository.save(imagenHospedaje);
+        console.log(`✅ Imagen ${index + 1} subida exitosamente: ${file.originalname}`);
+        
+        return { success: true, data: savedImage, filename: file.originalname };
+      } catch (error) {
+        console.error(`❌ Error subiendo imagen ${index + 1} (${file.originalname}):`, error.message);
+        return { 
+          success: false, 
+          error: error.message, 
+          filename: file.originalname,
+          index: index + 1 
+        };
+      }
     });
 
-    return Promise.all(uploadPromises);
+    // Usar Promise.allSettled para permitir éxito parcial
+    const results = await Promise.allSettled(uploadPromises);
+    
+    // Separar éxitos y errores
+    const successful: any[] = [];
+    const failed: any[] = [];
+    
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        if (result.value.success) {
+          successful.push(result.value.data);
+        } else {
+          failed.push(result.value);
+        }
+      } else {
+        failed.push({
+          success: false,
+          error: result.reason?.message || 'Error desconocido',
+          filename: files[index]?.originalname || `archivo_${index + 1}`,
+          index: index + 1
+        });
+      }
+    });
+
+    console.log(`📊 Resultado subida de imágenes: ${successful.length} exitosas, ${failed.length} fallidas`);
+    
+    if (failed.length > 0) {
+      console.error('❌ Imágenes que fallaron:', failed);
+    }
+
+    // Si todas las imágenes fallaron, lanzar error
+    if (successful.length === 0 && failed.length > 0) {
+      throw new BadRequestException(`Error subiendo todas las imágenes: ${failed.map(f => f.filename).join(', ')}`);
+    }
+
+    return successful;
   }
 
   /**

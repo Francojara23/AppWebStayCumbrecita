@@ -16,18 +16,24 @@ type RoomService = {
 
 // Tipo para la habitación
 export type RoomType = {
-  id: string
+  id: string // ID representativo del grupo (o habitación individual)
   name: string
   description: string
   capacity: number
   price: number
-  available: number
+  available: number // Para compatibilidad = cantidadDisponible || (isAvailable ? 1 : 0)
   image: string
   services?: RoomService[]
   images?: string[]
   descripcionLarga?: string
   isAvailable?: boolean // Flag para indicar si está disponible en fechas específicas
   unavailableReason?: 'dates' | 'capacity' | 'dates_and_capacity' | null // Motivo específico de no disponibilidad
+  
+  // NUEVOS CAMPOS para habitaciones agrupadas
+  cantidadTotal?: number // Total de habitaciones con este nombre
+  cantidadDisponible?: number // Disponibles en las fechas consultadas
+  habitacionesIds?: string[] // IDs de habitaciones individuales disponibles
+  esGrupo?: boolean // Flag para saber si es grupo (cantidadTotal > 1) o individual
 }
 
 // Tipo para los servicios de habitación que vienen del backend

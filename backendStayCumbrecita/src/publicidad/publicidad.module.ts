@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PublicidadService } from './publicidad.service';
 import { PublicidadController } from './publicidad.controller';
@@ -19,7 +19,7 @@ import { NotificacionesModule } from '../notificaciones/notificaciones.module';
     TypeOrmModule.forFeature([Publicidad, Pago, Hospedaje, Tarjeta, Usuario]),
     PagosModule,
     TarjetasModule,
-    HospedajesModule,
+    forwardRef(() => HospedajesModule),
     EmpleadosModule,
     MailModule,
     NotificacionesModule,
