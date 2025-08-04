@@ -81,9 +81,10 @@ export function useReservasPago() {
         const reservaConDatosPago = {
           ...reservaData,
           pagoId: pago.id,
-          montoRealPago: pago.montoReserva,
-          impuestosRealPago: pago.montoImpuestos,
-          totalRealPago: pago.montoTotal,
+          // Convertir explícitamente a números para evitar errores de validación
+          montoRealPago: Number(pago.montoReserva),
+          impuestosRealPago: Number(pago.montoImpuestos),
+          totalRealPago: Number(pago.montoTotal),
           estadoPago: pago.estado
         };
 

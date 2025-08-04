@@ -88,7 +88,10 @@ export default function ChatModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed bottom-20 right-6 w-[420px] bg-white rounded-lg shadow-xl border overflow-hidden z-50">
+    <div 
+      className="fixed bottom-20 right-6 w-[420px] bg-white rounded-lg shadow-xl border overflow-hidden z-50"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Header */}
       <div className="bg-[#CD6C22] text-white p-4 flex justify-between items-center">
         <div className="flex items-center gap-2">

@@ -15,10 +15,11 @@ import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import DeleteConfirmationDialog from "@/components/delete-confirmation-dialog"
 import PaymentDetailsModal from "@/components/adminABM/PaymentDetailsModal"
-import { useHospedajesAdmin, useMisPublicidades } from "@/hooks/use-api"
+import { useMisPublicidades } from "@/hooks/use-api"
 import { useCrearPublicidad } from "@/hooks/useCrearPublicidad"
 import { Loader2 } from "lucide-react"
 import { useIsHospedajeOwner } from "@/hooks/use-user-permissions"
+import { apiClient } from "@/lib/api/client"
 
 // Tipo para los hoteles actualizado para usar datos del backend
 interface Hotel {
@@ -178,10 +179,10 @@ export default function PublicidadPage() {
   // Estado para las publicidades procesadas
   const [hotels, setHotels] = useState<Hotel[]>([])
   
-  // Hooks para obtener datos con autorización automática
-  const { data: hospedajesData, isLoading: isLoadingHospedajes, error: errorHospedajes } = useHospedajesAdmin({
-    limit: 100 // Obtener todos los hospedajes del usuario
-  })
+  // Estados para hospedajes (siguiendo patrón de chatbot)
+  const [hospedajesData, setHospedajesData] = useState<any>(null)
+  const [isLoadingHospedajes, setIsLoadingHospedajes] = useState(true)
+  const [errorHospedajes, setErrorHospedajes] = useState<any>(null)
   
   const { data: publicidadesData, isLoading: isLoadingPublicidades, error: errorPublicidades } = useMisPublicidades()
   
@@ -226,6 +227,42 @@ export default function PublicidadPage() {
   // Estado para el modal de detalles del pago
   const [isPaymentDetailsModalOpen, setIsPaymentDetailsModalOpen] = useState(false)
   const [selectedPublicidad, setSelectedPublicidad] = useState<any>(null)
+
+  // Función para obtener hospedajes del usuario (siguiendo patrón de chatbot)
+  const loadHospedajes = async () => {
+    try {
+      setIsLoadingHospedajes(true)
+      setErrorHospedajes(null)
+      
+      console.log('🔑 Haciendo petición a /hospedajes/mis-hospedajes para publicidad')
+      
+      // Obtener hospedajes donde el usuario es propietario O empleado con permisos
+      const hospedajesResponse = await apiClient.get('/hospedajes/mis-hospedajes', {
+        params: {
+          limit: 100 // Obtener todos los hospedajes del usuario
+        }
+      })
+      
+      console.log('🏨 Hospedajes cargados para publicidad:', hospedajesResponse.data)
+      
+      setHospedajesData(hospedajesResponse.data)
+    } catch (error) {
+      console.error('Error cargando hospedajes para publicidad:', error)
+      setErrorHospedajes(error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los hospedajes",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingHospedajes(false)
+    }
+  }
+
+  // Cargar hospedajes cuando el componente se monta
+  useEffect(() => {
+    loadHospedajes()
+  }, [])
 
   // Función para abrir el diálogo de promoción
   const openPromotionDialog = (hotelId: string) => {
@@ -462,7 +499,7 @@ export default function PublicidadPage() {
         })
 
         // Recargar los datos para mostrar la nueva publicidad
-        window.location.reload()
+        await loadHospedajes()
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido al procesar el pago'
@@ -547,6 +584,7 @@ export default function PublicidadPage() {
       })
       
       // Los hospedajes ya vienen filtrados por el backend con autorización granular
+      // Ahora incluyen tanto propietarios como empleados con permisos
       const transformedData: Hotel[] = hospedajes.map((hospedaje: any) => {
         const publicidad = publicidadMap.get(hospedaje.id)
         
@@ -564,14 +602,15 @@ export default function PublicidadPage() {
       
       setHotels(transformedData)
       
-      console.log("Datos procesados:", {
+      console.log("✅ Datos procesados correctamente con nuevo endpoint:", {
         hospedajes: hospedajes.length,
         publicidades: publicidades.length,
-        hotelsFinales: transformedData.length
+        hotelsFinales: transformedData.length,
+        endpoint: '/hospedajes/mis-hospedajes'
       })
       
     } catch (error) {
-      console.error("Error processing data:", error)
+      console.error("❌ Error processing data:", error)
       toast({
         title: "Error",
         description: "No se pudieron procesar los datos de publicidad",

@@ -19,6 +19,8 @@ interface BookingFormProps {
   initialGuests?: number
   initialRooms?: number
   selectedRooms?: any[] // Habitaciones seleccionadas (array vacío si no hay selección)
+  onRemoveRoom?: (uniqueId: string) => void // Función para quitar habitación individual
+  onClearAllRooms?: () => void // Función para limpiar todas las habitaciones
 }
 
 // Función para formatear precios en formato argentino
@@ -100,10 +102,26 @@ export default function BookingForm({
   initialCheckOut,
   initialGuests = 2,
   initialRooms = 1,
-  selectedRooms = []
+  selectedRooms = [],
+  onRemoveRoom,
+  onClearAllRooms
 }: BookingFormProps) {
   const [guests, setGuests] = useState(initialGuests)
   const [rooms, setRooms] = useState(initialRooms)
+  
+  // Función para calcular capacidad total de habitaciones seleccionadas
+  const calculateTotalCapacity = () => {
+    return selectedRooms.reduce((total, room) => {
+      return total + (room.capacity || room.capacidad || 0)
+    }, 0)
+  }
+  
+  // Verificar si la capacidad total cumple con los huéspedes solicitados
+  const totalCapacity = calculateTotalCapacity()
+  const isCapacityValid = totalCapacity >= guests
+  const capacityMessage = selectedRooms.length > 0 
+    ? `Capacidad total: ${totalCapacity} huéspedes (necesitas ${guests})`
+    : null
   
   // Estados para el calendario
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(initialCheckIn)
@@ -292,15 +310,45 @@ export default function BookingForm({
       <div className="border-t pt-4 mb-6">
         {selectedRooms && selectedRooms.length > 0 ? (
           <>
-            <div className="mb-3 p-3 bg-blue-50 rounded-lg">
-              <div className="text-sm font-medium text-blue-800">
-                {selectedRooms.length === 1 ? 'Habitación elegida:' : `${selectedRooms.length} habitaciones elegidas:`}
-              </div>
-              {selectedRooms.map((room, index) => (
-                <div key={room.id} className="text-blue-900">
-                  {index + 1}. {room.nombre}
+            <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex justify-between items-center mb-3">
+                <div className="text-sm font-semibold text-gray-800">
+                  {selectedRooms.length === 1 ? 'Habitación seleccionada:' : `${selectedRooms.length} habitaciones seleccionadas:`}
                 </div>
-              ))}
+                {onClearAllRooms && selectedRooms.length > 1 && (
+                  <button
+                    onClick={onClearAllRooms}
+                    className="text-xs text-gray-600 hover:text-[#CD6C22] transition-colors underline"
+                  >
+                    Limpiar todo
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {selectedRooms.map((room, index) => (
+                  <div key={room.uniqueId || room.id} className="flex justify-between items-center bg-white p-3 rounded border border-gray-100 shadow-sm">
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-800">
+                        {room.nombre || room.name}
+                      </span>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Capacidad: {room.capacity || room.capacidad} huéspedes
+                      </div>
+                    </div>
+                    {onRemoveRoom && room.uniqueId && (
+                      <button
+                        onClick={() => onRemoveRoom(room.uniqueId)}
+                        className="ml-3 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-[#CD6C22] hover:bg-orange-50 rounded-full transition-colors"
+                        title="Quitar habitación"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="flex justify-between mb-2">
               <span>
@@ -334,12 +382,47 @@ export default function BookingForm({
 
       {/* Book Button */}
       <Button 
-        className="w-full bg-[#CD6C22] hover:bg-[#A83921] h-12 text-lg" 
+        className="w-full bg-[#CD6C22] hover:bg-[#A83921] h-12 text-lg mb-3" 
         onClick={onReservation}
-        disabled={!checkInDate || !checkOutDate || !selectedRooms || selectedRooms.length === 0}
+        disabled={!checkInDate || !checkOutDate || !selectedRooms || selectedRooms.length === 0 || !isCapacityValid}
       >
-        {selectedRooms && selectedRooms.length > 0 ? 'Reservar' : 'Elige una habitación'}
+        {selectedRooms && selectedRooms.length > 0 
+          ? (isCapacityValid ? 'Reservar' : 'Selecciona más habitaciones')
+          : 'Elige una habitación'
+        }
       </Button>
+
+      {/* Mensaje de validación de capacidad - Debajo del botón */}
+      {selectedRooms && selectedRooms.length > 0 && (
+        <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+          <div className="text-center">
+            {isCapacityValid ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 text-[#CD6C22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="font-bold text-gray-800">
+                  Capacidad confirmada: {totalCapacity} huéspedes para {guests} personas
+                </span>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <span className="font-bold text-gray-700">
+                    Capacidad: {totalCapacity} de {guests} huéspedes necesarios
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  Agrega más habitaciones para completar la capacidad requerida
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
 
     </div>

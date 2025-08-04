@@ -197,9 +197,10 @@ export class HabitacionesService {
         { precioMin, precioMax });
     }
 
-    if (capacidad) {
-      queryBuilder.andWhere('habitacion.capacidad >= :capacidad', { capacidad });
-    }
+    // NOTA: Removido filtro de capacidad individual para permitir selección múltiple
+    // if (capacidad) {
+    //   queryBuilder.andWhere('habitacion.capacidad >= :capacidad', { capacidad });
+    // }
 
     if (tipoHabitacionId) {
       queryBuilder.andWhere('habitacion.tipoHabitacion.id = :tipoHabitacionId', { tipoHabitacionId });
@@ -475,10 +476,11 @@ export class HabitacionesService {
       queryBuilder.andWhere('habitacion.tipoHabitacion.id = :tipoHabitacionId', { tipoHabitacionId });
     }
 
-    // Filtrar por capacidad si se especifica
-    if (personas) {
-      queryBuilder.andWhere('habitacion.capacidad >= :personas', { personas });
-    }
+    // NOTA: Removido filtro de capacidad individual para permitir selección múltiple
+    // El frontend validará que la suma de capacidades >= huéspedes solicitados
+    // if (personas) {
+    //   queryBuilder.andWhere('habitacion.capacidad >= :personas', { personas });
+    // }
 
     // Filtrar por precio base si se especifica
     if (precioMin !== undefined) {
@@ -1568,9 +1570,11 @@ export class HabitacionesService {
     // 6. Aplicar filtros adicionales
     let habitacionesFiltradas = habitacionesAgrupadas;
 
-    if (query.personas && query.personas > 0) {
-      habitacionesFiltradas = habitacionesFiltradas.filter(h => h.capacidad >= query.personas!);
-    }
+    // NOTA: Removido filtro de capacidad individual para permitir selección múltiple
+    // El frontend validará que la suma de capacidades >= huéspedes solicitados
+    // if (query.personas && query.personas > 0) {
+    //   habitacionesFiltradas = habitacionesFiltradas.filter(h => h.capacidad >= query.personas!);
+    // }
 
     if (query.precioMin !== undefined) {
       habitacionesFiltradas = habitacionesFiltradas.filter(h => h.precioBase >= query.precioMin!);

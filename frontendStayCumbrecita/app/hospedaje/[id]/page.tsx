@@ -88,7 +88,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
   const searchParams = useSearchParams()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [roomQuantities, setRoomQuantities] = useState<{ [key: string]: number }>({})
-  const [selectedRooms, setSelectedRooms] = useState<{[key: string]: any}>({}); // Habitaciones seleccionadas para el sidebar
+  // ELIMINADO: const [selectedRooms, setSelectedRooms] = useState - ahora usamos selectedRoomsList
 
   // Unwrap params Promise
   const { id } = use(params)
@@ -182,11 +182,10 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleReservation = () => {
     console.log('🔍 HandleReservation - Estado de autenticación:', isLoggedIn)
-    console.log('🔍 HandleReservation - Habitaciones seleccionadas:', selectedRooms)
+    console.log('🔍 HandleReservation - Habitaciones seleccionadas:', selectedRoomsList)
     
     // Verificar que hay al menos una habitación seleccionada
-    const selectedRoomIds = Object.keys(selectedRooms)
-    if (selectedRoomIds.length === 0) {
+    if (selectedRoomsList.length === 0) {
       alert('Por favor, selecciona al menos una habitación en la pestaña "Habitaciones" antes de reservar.')
       return
     }
@@ -199,7 +198,6 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     
     if (isLoggedIn) {
       // Calcular datos de la reserva
-      const selectedRoomsList = Object.values(selectedRooms)
       const checkInDate = new Date(fechaInicio + 'T12:00:00')
       const checkOutDate = new Date(fechaFin + 'T12:00:00')
       const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -233,7 +231,8 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       })
 
       // Construir URL solo con datos básicos (sin precios calculados)
-      const habitacionIds = selectedRoomIds.join(',')
+      // Usar los IDs únicos reales de cada habitación seleccionada
+      const habitacionIds = selectedRoomsList.map(room => room.id).join(',')
       const searchParams = new URLSearchParams({
         hospedajeId: id,
         habitacionIds: habitacionIds,
@@ -254,19 +253,17 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     } else {
       console.log('🔍 Usuario no autenticado, redirigiendo a login')
       // Construir URL de login con callbackUrl para redirigir al checkout después del login
-      const habitacionIds = selectedRoomIds.join(',')
+      const habitacionIds = selectedRoomsList.map(room => room.id).join(',')
       const checkInDate = new Date(fechaInicio + 'T12:00:00')
       const checkOutDate = new Date(fechaFin + 'T12:00:00')
       const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
       
-      const selectedRoomsList = Object.values(selectedRooms)
-      
       // Calcular precios con ajustes para cada habitación (igual que arriba)
       let subtotalConAjustes = 0
       
-      selectedRoomsList.forEach(room => {
+      selectedRoomsList.forEach((room: any) => {
         const basePrice = parseFloat(room.precioBase?.toString() || '0')
-        const ajustes = (room as any).ajustesPrecio || []
+        const ajustes = room.ajustesPrecio || []
         
         // Aplicar cálculo de precios con ajustes para esta habitación
         const priceCalculation = calculateDailyPrices(checkInDate, checkOutDate, basePrice, ajustes)
@@ -295,61 +292,67 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  // Función para alternar selección de habitación (actualizada para habitaciones agrupadas)
+  // Estado para gestionar habitaciones seleccionadas como array individual
+  const [selectedRoomsList, setSelectedRoomsList] = useState<any[]>([])
+
+  // Función para agregar habitaciones (nueva lógica)
   const handleRoomSelection = (roomId: string) => {
     const room = hotelRooms.find((h: any) => h.id === roomId)
     if (room) {
       const quantity = roomQuantities[roomId] || 1;
       
-      setSelectedRooms(prev => {
-        const newSelected = { ...prev }
-        if (newSelected[roomId]) {
-          // Si ya está seleccionada, la removemos
-          delete newSelected[roomId]
-          console.log('🏠 [handleRoomSelection] Habitación removida del sidebar:', room.name)
-        } else {
-          // Si no está seleccionada, la agregamos con lógica para habitaciones múltiples
-          if (room.esGrupo) {
-            // Para habitaciones agrupadas, seleccionar habitaciones individuales específicas
-            const habitacionesSeleccionadas = room.habitacionesIds?.slice(0, quantity) || [];
-            
-            newSelected[roomId] = {
-              ...room,
-              cantidadSeleccionada: quantity,
-              habitacionesIndividualesIds: habitacionesSeleccionadas,
-              // Para cada habitación individual seleccionada
-              reservaLineas: habitacionesSeleccionadas.map((habId: string) => ({
-                habitacionId: habId,
-                precioBase: room.price,
-                personas: Math.ceil(huespedes / quantity) // Distribuir huéspedes
-              }))
-            };
-            
-            console.log('🏠 [handleRoomSelection] Grupo de habitaciones agregado:', {
-              nombre: room.name,
-              cantidad: quantity,
-              habitacionesIds: habitacionesSeleccionadas
-            });
-          } else {
-            // Para habitaciones individuales (lógica actual)
-            newSelected[roomId] = {
-              ...room,
-              cantidadSeleccionada: 1,
-              habitacionesIndividualesIds: [room.id],
-              reservaLineas: [{
-                habitacionId: room.id,
-                precioBase: room.price,
-                personas: huespedes
-              }]
-            };
-            
-            console.log('🏠 [handleRoomSelection] Habitación individual agregada:', room.name);
-          }
+      // Verificar que hay suficientes habitaciones disponibles
+      const habitacionesDisponibles = room.habitacionesIds || []
+      if (quantity > habitacionesDisponibles.length) {
+        alert(`Solo hay ${habitacionesDisponibles.length} habitaciones disponibles de este tipo. Solicitaste ${quantity}.`)
+        return
+      }
+      
+      // Agregar múltiples habitaciones usando IDs únicos reales
+      const newRooms: any[] = []
+      for (let i = 0; i < quantity; i++) {
+        const habitacionUnicaId = habitacionesDisponibles[i] // ID único real de cada habitación
+        if (habitacionUnicaId) {
+          const uniqueId = `${habitacionUnicaId}_${Date.now()}_${i}` // ID único para gestión individual
+          newRooms.push({
+            ...room,
+            id: habitacionUnicaId, // ID único real de la habitación física
+            uniqueId: uniqueId, // ID único para gestión individual
+            originalRoomId: roomId, // ID original del tipo de habitación (para referencia)
+            instanceIndex: i + 1, // Índice de la instancia (ej: "Habitación Doble #1")
+            // Mantener campos de capacidad para validación
+            capacity: room.capacity,
+            capacidad: room.capacity,
+            precioBase: room.price,
+            nombre: `${room.name} #${i + 1}` // Nombre con numeración
+          })
         }
-        return newSelected
+      }
+      
+      // Agregar las nuevas habitaciones a la lista
+      setSelectedRoomsList(prev => [...prev, ...newRooms])
+      
+      console.log(`🏠 [handleRoomSelection] Agregadas ${quantity} habitaciones de tipo: ${room.name}`, {
+        habitacionesIds: newRooms.map(r => r.id),
+        habitacionesDisponibles: habitacionesDisponibles
       })
     }
   }
+
+  // Función para quitar una habitación específica
+  const handleRemoveRoom = (uniqueId: string) => {
+    setSelectedRoomsList(prev => prev.filter(room => room.uniqueId !== uniqueId))
+    console.log('🗑️ [handleRemoveRoom] Habitación removida:', uniqueId)
+  }
+
+  // Función para limpiar todas las selecciones
+  const handleClearAllRooms = () => {
+    setSelectedRoomsList([])
+    console.log('🗑️ [handleClearAllRooms] Todas las habitaciones removidas')
+  }
+
+  // Convertir selectedRoomsList a formato compatible con selectedRooms para BookingForm
+  const selectedRoomsForBooking = selectedRoomsList
 
   const handleRoomReservation = (roomId: string) => {
     // Esta función ya no se usa directamente, pero la mantengo para compatibilidad
@@ -428,7 +431,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   // Calcular el precio base acumulado de todas las habitaciones seleccionadas
-  const selectedRoomsList = Object.values(selectedRooms)
+  // Ya no necesitamos crear selectedRoomsList - ya es nuestro estado
   const basePrice = selectedRoomsList.reduce((total, room) => {
     return total + parseFloat(room.precioBase?.toString() || '0')
   }, 0)
@@ -472,22 +475,16 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     // Verificar disponibilidad
     const isAvailable = habitacionGrupo.cantidadDisponible > 0;
     
-    // Verificar disponibilidad por capacidad de huéspedes
-    const isAvailableByCapacity = habitacionGrupo.capacidad >= huespedes;
+    // NOTA: Removido filtro de capacidad individual para permitir selección múltiple
+    // La validación de capacidad total se hará en el BookingForm
     
-    // Determinar el motivo de no disponibilidad
+    // Determinar el motivo de no disponibilidad (solo por fechas)
     let unavailableReason = null;
-    if (!isAvailable || !isAvailableByCapacity) {
-      if (!isAvailable && !isAvailableByCapacity) {
-        unavailableReason = 'dates_and_capacity';
-      } else if (!isAvailable) {
-        unavailableReason = 'dates';
-      } else if (!isAvailableByCapacity) {
-        unavailableReason = 'capacity';
-      }
+    if (!isAvailable) {
+      unavailableReason = 'dates';
     }
     
-    const finalAvailability = isAvailable && isAvailableByCapacity;
+    const finalAvailability = isAvailable; // Solo verificar disponibilidad por fechas
     
     return {
       id: habitacionGrupo.id, // ID representativo del grupo
@@ -495,6 +492,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       description: habitacionGrupo.descripcionCorta || habitacionGrupo.descripcionLarga || "Sin descripción disponible",
       descripcionLarga: habitacionGrupo.descripcionLarga,
       capacity: habitacionGrupo.capacidad,
+      capacidad: habitacionGrupo.capacidad, // Mantener ambos campos para compatibilidad
       price: habitacionGrupo.precioBase,
       
       // Campos de compatibilidad
@@ -589,7 +587,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
               setRoomQuantities={setRoomQuantities}
               handleRoomReservation={handleRoomReservation}
               handleRoomSelection={handleRoomSelection}
-              selectedRoomIds={Object.keys(selectedRooms)}
+              selectedRoomIds={selectedRoomsList.map(room => room.originalRoomId || room.id)}
               isLoadingDisponibilidad={isLoadingDisponibilidad}
               requiredGuests={huespedes}
             />
@@ -606,7 +604,9 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
               initialCheckOut={initialCheckOut}
               initialGuests={huespedes}
               initialRooms={cantidadHabitaciones}
-              selectedRooms={selectedRoomsList}
+              selectedRooms={selectedRoomsForBooking}
+              onRemoveRoom={handleRemoveRoom}
+              onClearAllRooms={handleClearAllRooms}
             />
           </div>
         </div>

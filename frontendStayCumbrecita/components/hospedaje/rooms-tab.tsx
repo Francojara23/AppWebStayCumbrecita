@@ -172,19 +172,12 @@ export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, han
                     >
                       No disponible
                     </Button>
-                  ) : selectedRoomIds.includes(room.id) ? (
-                    <Button 
-                      className="bg-green-600 hover:bg-green-700 text-white" 
-                      onClick={() => handleRoomSelection(room.id)}
-                    >
-                      ✓ Elegida
-                    </Button>
                   ) : (
                     <Button 
                       className="bg-[#CD6C22] hover:bg-[#A83921]" 
                       onClick={() => handleRoomSelection(room.id)}
                     >
-                      Elegir habitación
+                      Agregar habitación
                     </Button>
                   )}
                 </div>
