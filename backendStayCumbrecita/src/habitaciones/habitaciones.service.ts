@@ -4,6 +4,7 @@ import { Repository, Between, Like, DataSource, In } from 'typeorm';
 import { HabitacionEntity } from './entidades/habitacion.entity';
 import { TipoHabitacionEntity } from './entidades/tipo-habitacion.entity';
 import { ImagenHabitacionEntity } from './entidades/imagen-habitacion.entity';
+import { HistorialPrecioEntity, AccionPrecio } from './entidades/historial-precio.entity';
 import { HabitacionServicio } from '../servicios/entidades/habitacion-servicio.entity';
 import { CreateHabitacionDto } from './dto/create-habitacion.dto';
 import { UpdateHabitacionDto } from './dto/update-habitacion.dto';
@@ -36,6 +37,8 @@ export class HabitacionesService {
     private tiposHabitacionRepository: Repository<TipoHabitacionEntity>,
     @InjectRepository(ImagenHabitacionEntity)
     private imagenesHabitacionRepository: Repository<ImagenHabitacionEntity>,
+    @InjectRepository(HistorialPrecioEntity)
+    private historialPreciosRepository: Repository<HistorialPrecioEntity>,
     @InjectRepository(HabitacionServicio)
     private habitacionServicioRepository: Repository<HabitacionServicio>,
     @Inject(forwardRef(() => HospedajesService))
@@ -108,6 +111,19 @@ export class HabitacionesService {
       await this.crearServiciosHabitacion(habitacionGuardada.id, servicios);
     }
 
+    // 📊 AUDITORÍA: Registrar creación de habitación con precios
+    await this.registrarHistorialPrecios(
+      habitacionGuardada,
+      AccionPrecio.CREAR,
+      {
+        precioBase: habitacionGuardada.precioBase,
+        ajustesPrecio: habitacionGuardada.ajustesPrecio || [],
+        hospedajeId: hospedajeId,
+        nombre: habitacionGuardada.nombre,
+      },
+      String(userId)
+    );
+
     return this.findOne(habitacionGuardada.id);
   }
 
@@ -150,6 +166,12 @@ export class HabitacionesService {
       relations: ['tipoHabitacion', 'imagenes'],
       skip: (page - 1) * limit,
       take: limit,
+    });
+
+    console.log(`🏠 [HabitacionesService] findAllByHospedaje - habitaciones con ajustesPrecio:`, {
+      hospedajeId,
+      total,
+      habitacionesConAjustes: habitaciones.filter(h => h.ajustesPrecio && h.ajustesPrecio.length > 0).length
     });
 
     return {
@@ -267,6 +289,13 @@ export class HabitacionesService {
       throw new ForbiddenException('No tienes permiso para actualizar esta habitación');
     }
 
+    // 📊 AUDITORÍA: Guardar datos anteriores para comparación
+    const datosAnteriores = {
+      precioBase: habitacion.precioBase,
+      ajustesPrecio: habitacion.ajustesPrecio || [],
+      nombre: habitacion.nombre,
+    };
+
     // Actualizar tipo de habitación si se proporciona
     if (updateHabitacionDto.tipoHabitacionId) {
       const tipoHabitacion = await this.tiposHabitacionRepository.findOne({
@@ -280,7 +309,31 @@ export class HabitacionesService {
 
     // Actualizar datos básicos
     Object.assign(habitacion, updateHabitacionDto);
-    return this.habitacionesRepository.save(habitacion);
+    const habitacionActualizada = await this.habitacionesRepository.save(habitacion);
+
+    // 📊 AUDITORÍA: Registrar actualización solo si hay cambios en precios
+    const huboCambiosPrecios = 
+      datosAnteriores.precioBase !== habitacionActualizada.precioBase ||
+      JSON.stringify(datosAnteriores.ajustesPrecio) !== JSON.stringify(habitacionActualizada.ajustesPrecio || []);
+
+    if (huboCambiosPrecios) {
+      await this.registrarHistorialPrecios(
+        habitacionActualizada,
+        AccionPrecio.ACTUALIZAR,
+        {
+          anterior: datosAnteriores,
+          nuevo: {
+            precioBase: habitacionActualizada.precioBase,
+            ajustesPrecio: habitacionActualizada.ajustesPrecio || [],
+            nombre: habitacionActualizada.nombre,
+          },
+          hospedajeId: habitacion.hospedaje.id,
+        },
+        String(userId)
+      );
+    }
+
+    return habitacionActualizada;
   }
 
   /**
@@ -399,6 +452,12 @@ export class HabitacionesService {
       return dia === 5 || dia === 6 || dia === 0; // 5 = Viernes, 6 = Sábado, 0 = Domingo
     };
 
+    // Función auxiliar para verificar si es día de semana (lunes a jueves)
+    const esDiaDeSemana = (fecha: Date) => {
+      const dia = fecha.getDay();
+      return dia >= 1 && dia <= 4; // 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves
+    };
+
     // Aplicar ajuste de temporada
     const ajusteTemporada = habitacion.ajustesPrecio.find((ajuste: any) => 
       ajuste.active && 
@@ -423,6 +482,20 @@ export class HabitacionesService {
       }
     }
 
+    // Aplicar ajuste de días de semana (lunes a jueves) - Puede ser descuento
+    if (esDiaDeSemana(fecha)) {
+      const ajusteDiasSemana = habitacion.ajustesPrecio.find((ajuste: any) => 
+        ajuste.active && 
+        ajuste.tipo === 'DIAS_SEMANA'
+      );
+
+      if (ajusteDiasSemana && ajusteDiasSemana.incrementoPct !== undefined) {
+        precioFinal *= (1 + ajusteDiasSemana.incrementoPct / 100);
+        // Asegurar que el precio no sea negativo (mínimo $1)
+        precioFinal = Math.max(precioFinal, 1);
+      }
+    }
+
     return Math.round(precioFinal * 100) / 100; // Redondear a 2 decimales
   }
 
@@ -443,6 +516,8 @@ export class HabitacionesService {
    * @returns Lista paginada de habitaciones disponibles
    */
   async findDisponibles(query: QueryDisponibilidadDto) {
+    console.log('🚀 [HabitacionesService] findDisponibles llamado con:', JSON.stringify(query, null, 2));
+    
     const {
       fechaInicio,
       fechaFin,
@@ -454,6 +529,8 @@ export class HabitacionesService {
       page = 1,
       limit = 10,
     } = query;
+
+    console.log('📅 [HabitacionesService] Fechas extraídas:', { fechaInicio, fechaFin });
 
 
 
@@ -516,6 +593,50 @@ export class HabitacionesService {
       );
     }
 
+    // Calcular precios con ajustes si hay fechas
+    if (fechaInicio && fechaFin) {
+      const fechaInicioDate = new Date(fechaInicio);
+      const fechaFinDate = new Date(fechaFin);
+      
+      console.log('🔄 [HabitacionesService] Calculando precios con ajustes para fechas:', {
+        fechaInicio,
+        fechaFin,
+        habitacionesDisponibles: habitacionesDisponibles.length
+      });
+
+      // Calcular precio mínimo por noche para cada habitación
+      for (const habitacion of habitacionesDisponibles) {
+        try {
+          const preciosCalculados: number[] = [];
+          const fechaActual = new Date(fechaInicioDate);
+          
+          // Calcular precio para cada día del rango
+          while (fechaActual < fechaFinDate) {
+            const precioConAjustes = await this.calcularPrecioConAjustes(habitacion, fechaActual);
+            preciosCalculados.push(precioConAjustes);
+            fechaActual.setDate(fechaActual.getDate() + 1);
+          }
+          
+          // Obtener precio mínimo del rango (precio "desde")
+          const precioMinimo = Math.min(...preciosCalculados);
+          
+          // Agregar precio calculado a la habitación
+          (habitacion as any).precioCalculado = precioMinimo;
+          
+          console.log(`💰 [HabitacionesService] Habitación ${habitacion.nombre}:`, {
+            precioBase: habitacion.precioBase,
+            precioMinimo,
+            descuento: precioMinimo < parseFloat(habitacion.precioBase.toString()) ? 'Sí' : 'No'
+          });
+          
+        } catch (error) {
+          console.error(`❌ Error calculando precio para habitación ${habitacion.id}:`, error);
+          // En caso de error, usar precio base
+          (habitacion as any).precioCalculado = parseFloat(habitacion.precioBase.toString());
+        }
+      }
+    }
+
     // Aplicar paginación a las habitaciones disponibles
     const total = habitacionesDisponibles.length;
     const habitacionesPaginadas = habitacionesDisponibles.slice(
@@ -523,7 +644,11 @@ export class HabitacionesService {
       page * limit
     );
 
-
+    console.log('✅ [HabitacionesService] Habitaciones disponibles procesadas:', {
+      total,
+      paginadas: habitacionesPaginadas.length,
+      conPreciosCalculados: habitacionesPaginadas.filter(h => (h as any).precioCalculado).length
+    });
 
     return {
       data: habitacionesPaginadas,
@@ -668,6 +793,12 @@ export class HabitacionesService {
       return dia === 5 || dia === 6 || dia === 0; // 5 = Viernes, 6 = Sábado, 0 = Domingo
     };
 
+    // Función auxiliar para verificar si es día de semana (lunes a jueves)
+    const esDiaDeSemana = (fecha: Date) => {
+      const dia = fecha.getDay();
+      return dia >= 1 && dia <= 4; // 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves
+    };
+
     // Función auxiliar para verificar si es fin de semana largo
     const esFinDeSemanaLargo = async (fecha: Date) => {
       // Aquí deberías implementar la lógica para detectar fines de semana largos
@@ -714,10 +845,53 @@ export class HabitacionesService {
       precioFinal *= (1 + (ajusteEvento.incrementoPct || 0) / 100);
     }
 
+    // Aplicar ajuste de días de semana (lunes a jueves) - Puede ser descuento
+    if (esDiaDeSemana(fecha)) {
+      const ajusteDiasSemana = habitacion.ajustesPrecio?.find(ajuste => 
+        ajuste.active && 
+        (ajuste.tipo as string === 'DIAS_SEMANA' || ajuste.tipo === TipoAjustePrecio.DIAS_SEMANA)
+      );
+
+      if (ajusteDiasSemana && ajusteDiasSemana.incrementoPct !== undefined) {
+        precioFinal *= (1 + ajusteDiasSemana.incrementoPct / 100);
+        // Asegurar que el precio no sea negativo (mínimo $1)
+        precioFinal = Math.max(precioFinal, 1);
+      }
+    }
+
     // Aplicar 21% de impuestos y cargos al precio final
     precioFinal *= 1.21;
 
     return Math.round(precioFinal * 100) / 100; // Redondear a 2 decimales
+  }
+
+  /**
+   * Registra cambios en el historial de precios para auditoría
+   * @param habitacion Habitación relacionada al cambio
+   * @param accion Tipo de acción realizada (CREAR, ACTUALIZAR, etc.)
+   * @param payload Datos del cambio (precios anteriores y nuevos)
+   * @param usuarioId ID del usuario que realiza el cambio
+   */
+  private async registrarHistorialPrecios(
+    habitacion: HabitacionEntity,
+    accion: AccionPrecio,
+    payload: Record<string, any>,
+    usuarioId: string
+  ): Promise<void> {
+    try {
+      const historialEntry = this.historialPreciosRepository.create({
+        habitacion,
+        usuarioId,
+        accion,
+        payload,
+      });
+      
+      await this.historialPreciosRepository.save(historialEntry);
+      console.log(`✅ Registro de auditoría creado: ${accion} para habitación ${habitacion.id}`);
+    } catch (error) {
+      console.error('❌ Error al registrar historial de precios:', error);
+      // No lanzar error para no interrumpir el flujo principal
+    }
   }
 
   async getCalendarioPrecios(id: string, from: Date, to: Date): Promise<Array<{ fecha: Date; precio: number }>> {
@@ -1557,6 +1731,7 @@ export class HabitacionesService {
         descripcionLarga: habitacionRepresentativa.descripcionLarga,
         capacidad: habitacionRepresentativa.capacidad,
         precioBase: habitacionRepresentativa.precioBase,
+        ajustesPrecio: habitacionRepresentativa.ajustesPrecio || [], // ✅ AGREGADO
         cantidadTotal: grupo.habitaciones.length,
         cantidadDisponible: grupo.disponibles.length,
         habitacionesDisponiblesIds: grupo.disponibles.map(h => h.id),

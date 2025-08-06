@@ -25,8 +25,9 @@ export default function EditarHabitacionPage({ params }: EditarHabitacionPagePro
   const [roomId, setRoomId] = useState<string>("")
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [originalServices, setOriginalServices] = useState<string[]>([])
-  const [formData, setFormData] = useState<any>({})
-  const [ajustesPrecio, setAjustesPrecio] = useState<any[]>([])
+  const [formData, setFormData] = useState<any>({
+    ajustesPrecio: [] as any[], // ✅ UNIFICADO: Mover ajustesPrecio a formData
+  })
   const [isSaving, setIsSaving] = useState(false)
 
   // Resolver params
@@ -70,6 +71,7 @@ export default function EditarHabitacionPage({ params }: EditarHabitacionPagePro
         tipoHabitacionId: habitacion.tipoHabitacion?.id,
         capacidad: habitacion.capacidad,
         precioBase: habitacion.precioBase,
+        ajustesPrecio: habitacion.ajustesPrecio || [], // ✅ UNIFICADO: Incluir en formData
       }
       setFormData(initialData)
 
@@ -90,11 +92,7 @@ export default function EditarHabitacionPage({ params }: EditarHabitacionPagePro
         })))
       }
 
-      // Cargar ajustes de precio
-      if (habitacion.ajustesPrecio) {
-        setAjustesPrecio(habitacion.ajustesPrecio)
-        console.log('🔧 Ajustes de precio:', habitacion.ajustesPrecio)
-      }
+      console.log('🔧 Ajustes de precio cargados en formData:', habitacion.ajustesPrecio)
     }
   }, [habitacion])
 
@@ -201,6 +199,7 @@ export default function EditarHabitacionPage({ params }: EditarHabitacionPagePro
         tipoHabitacionId: formData.tipoHabitacionId,
         capacidad: parseInt(formData.capacidad),
         precioBase: parseFloat(formData.precioBase),
+        ajustesPrecio: formData.ajustesPrecio, // ✅ UNIFICADO: Usar formData
       }
 
       await updateHabitacion.mutateAsync({ id: roomId, data: updateData })
@@ -409,8 +408,8 @@ export default function EditarHabitacionPage({ params }: EditarHabitacionPagePro
             <div className="mt-6">
               <h3 className="text-md font-medium mb-2">Reglas de precio adicionales</h3>
               <PriceRulesBuilder
-                rules={ajustesPrecio}
-                onRulesChange={setAjustesPrecio}
+                rules={formData.ajustesPrecio || []}
+                onRulesChange={(rules) => setFormData({ ...formData, ajustesPrecio: rules })}
                 basePrice={Number(formData.precioBase) || 0}
               />
             </div>

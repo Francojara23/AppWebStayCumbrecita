@@ -20,6 +20,11 @@ const isWeekend = (date: Date): boolean => {
   return day === 5 || day === 6 || day === 0 // Viernes, Sábado, Domingo
 }
 
+const isWeekday = (date: Date): boolean => {
+  const day = date.getDay()
+  return day >= 1 && day <= 4 // Lunes a Jueves
+}
+
 const isInTemporadaRange = (date: Date, desde: string, hasta: string): boolean => {
   if (!desde || !hasta) return false
   const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
@@ -40,26 +45,28 @@ const calculateDailyPrices = (
     let dailyPrice = basePrice
     const adjustments: string[] = []
     
-    // Aplicar ajustes de temporada primero (formato del backend)
+    // Aplicar ajustes en orden de prioridad (igual que booking-form)
     for (const ajuste of ajustes) {
-      if (ajuste.tipo === 'TEMPORADA' && ajuste.desde && ajuste.hasta && ajuste.active) {
-        if (isInTemporadaRange(currentDate, ajuste.desde, ajuste.hasta)) {
-          const increment = (basePrice * ajuste.incrementoPct / 100)
-          dailyPrice += increment
-          adjustments.push(`Temporada: +${ajuste.incrementoPct}%`)
-        }
-      }
-    }
-    
-    // Aplicar ajustes de fin de semana después (sobre el precio ya ajustado por temporada)
-    for (const ajuste of ajustes) {
-      if (ajuste.tipo === 'FINDE' && ajuste.active && isWeekend(currentDate)) {
-        const increment = (dailyPrice * ajuste.incrementoPct / 100)
+      if (!ajuste.active) continue
+      
+      if (ajuste.tipo === 'FINDE' && isWeekend(currentDate)) {
+        const increment = (basePrice * ajuste.incrementoPct / 100)
         dailyPrice += increment
-        adjustments.push(`Fin de semana: +${ajuste.incrementoPct}%`)
+        adjustments.push(`Fin de semana +${ajuste.incrementoPct}%`)
+      } else if (ajuste.tipo === 'TEMPORADA' && ajuste.desde && ajuste.hasta && isInTemporadaRange(currentDate, ajuste.desde, ajuste.hasta)) {
+        const increment = (basePrice * ajuste.incrementoPct / 100)
+        dailyPrice += increment
+        adjustments.push(`Temporada +${ajuste.incrementoPct}%`)
+      } else if (ajuste.tipo === 'DIAS_SEMANA' && isWeekday(currentDate)) {
+        const increment = (basePrice * ajuste.incrementoPct / 100)
+        dailyPrice += increment
+        const sign = ajuste.incrementoPct >= 0 ? '+' : ''
+        adjustments.push(`Días de semana ${sign}${ajuste.incrementoPct}%`)
       }
     }
     
+    // Asegurar que el precio no sea negativo (mínimo $1)
+    dailyPrice = Math.max(dailyPrice, 1)
     dailyPrice = Math.round(dailyPrice)
     totalPrice += dailyPrice
     
@@ -209,9 +216,11 @@ export default function CheckoutPage() {
         const priceCalculation = calculateDailyPrices(checkInDate, checkOutDate, basePrice, ajustes)
         subtotalConAjustes += priceCalculation.totalPrice
         
-        console.log(`💰 Cálculo para habitación ${habitacion.nombre}:`, {
+        console.log(`💰 [Checkout] Cálculo para habitación ${habitacion.nombre}:`, {
           basePrice,
           ajustes,
+          tieneAjustes: ajustes.length > 0,
+          tieneAjustesDiasSemana: ajustes.some((a: any) => a.tipo === 'DIAS_SEMANA'),
           totalParaEstaHabitacion: priceCalculation.totalPrice,
           breakdown: priceCalculation.breakdown
         })

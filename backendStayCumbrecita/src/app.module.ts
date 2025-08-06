@@ -37,7 +37,7 @@ import { MailService } from "./mail/mail.service";
     // Configuración del módulo de tareas programadas
     ScheduleModule.forRoot(),
 
-    // Configuración de la conexión a la base de datos PostgreSQL
+    // Configuración de la conexión a la base de datos PostgreSQL principal
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -53,6 +53,8 @@ import { MailService } from "./mail/mail.service";
         synchronize: true, // Sincroniza el esquema de la base de datos (solo para desarrollo)
       }),
     }),
+
+
     // Configuración de uploads PRIMERO (providers de Cloudinary)
     UploadsModule,
     

@@ -19,6 +19,9 @@ export class HabitacionAgrupadaDto {
   @ApiProperty({ description: 'Precio base por noche' })
   precioBase: number;
 
+  @ApiProperty({ description: 'Ajustes de precio aplicables', type: Array })
+  ajustesPrecio: any[];
+
   @ApiProperty({ description: 'Cantidad total de habitaciones con este nombre' })
   cantidadTotal: number;
 

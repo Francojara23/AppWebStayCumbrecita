@@ -422,9 +422,10 @@ export default function SearchPage() {
     guests
   )
 
-  // Hook para filtrar por disponibilidad de fechas
+  // Hook para filtrar por disponibilidad de fechas y obtener precios calculados
   const useHospedajesPorDisponibilidad = (fechaInicio: Date | undefined, fechaFin: Date | undefined, guests: number) => {
     const [hospedajesDisponibles, setHospedajesDisponibles] = useState<string[]>([])
+    const [preciosCalculadosPorHospedaje, setPreciosCalculadosPorHospedaje] = useState<{[key: string]: number}>({})
     const [isLoading, setIsLoading] = useState(false)
 
     useEffect(() => {
@@ -432,6 +433,7 @@ export default function SearchPage() {
         // Si no hay fechas, permitir todos los hospedajes
         if (!fechaInicio || !fechaFin) {
           setHospedajesDisponibles([...(hospedajeIds as string[])])
+          setPreciosCalculadosPorHospedaje({})
           return
         }
 
@@ -450,21 +452,49 @@ export default function SearchPage() {
           
           if (!response.ok) {
             setHospedajesDisponibles(hospedajeIds as string[]) // En caso de error, mostrar todos
+            setPreciosCalculadosPorHospedaje({})
             return
           }
 
           const habitacionesDisponibles = await response.json()
 
           // Extraer IDs únicos de hospedajes que tienen habitaciones disponibles
-          const hospedajeIdsConHabitaciones = [...new Set(
-            (habitacionesDisponibles.data || []).map((habitacion: any) => habitacion.hospedaje?.id).filter(Boolean)
-          )]
+          const allIds = (habitacionesDisponibles.data || [])
+            .map((habitacion: any) => habitacion.hospedaje?.id)
+            .filter((id: any): id is string => typeof id === 'string')
+          const hospedajeIdsConHabitaciones = [...new Set(allIds)] as string[]
 
-          setHospedajesDisponibles(hospedajeIdsConHabitaciones as string[])
+          // Calcular precio mínimo por hospedaje usando precios calculados
+          const preciosPorHospedaje: {[key: string]: number} = {}
+          
+          hospedajeIdsConHabitaciones.forEach((hospedajeId: string) => {
+            // Obtener habitaciones de este hospedaje
+            const habitacionesDelHospedaje = (habitacionesDisponibles.data || []).filter(
+              (habitacion: any) => habitacion.hospedaje?.id === hospedajeId
+            )
+            
+            // Obtener precios (usar precioCalculado si existe, sino precioBase)
+            const precios = habitacionesDelHospedaje.map((habitacion: any) => {
+              const precio = habitacion.precioCalculado || Number(habitacion.precioBase) || 0
+              console.log(`💰 Habitación ${habitacion.nombre}: precioBase=${habitacion.precioBase}, precioCalculado=${habitacion.precioCalculado}, usando=${precio}`)
+              return precio
+            }).filter((precio: number) => precio > 0)
+            
+            // Guardar precio mínimo del hospedaje
+            if (precios.length > 0) {
+              preciosPorHospedaje[hospedajeId] = Math.min(...precios)
+            }
+          })
+
+          console.log('🏨 Precios calculados por hospedaje:', preciosPorHospedaje)
+
+          setHospedajesDisponibles(hospedajeIdsConHabitaciones)
+          setPreciosCalculadosPorHospedaje(preciosPorHospedaje)
 
         } catch (error) {
           console.error('❌ Error en filtro de disponibilidad:', error)
           setHospedajesDisponibles(hospedajeIds as string[]) // En caso de error, mostener todos
+          setPreciosCalculadosPorHospedaje({})
         } finally {
           setIsLoading(false)
         }
@@ -473,11 +503,11 @@ export default function SearchPage() {
       filtrarPorDisponibilidad()
     }, [JSON.stringify(hospedajeIds), fechaInicio?.toISOString(), fechaFin?.toISOString(), guests])
 
-    return { data: hospedajesDisponibles, isLoading }
+    return { data: hospedajesDisponibles, preciosCalculados: preciosCalculadosPorHospedaje, isLoading }
   }
 
   // Usar el hook de disponibilidad
-  const { data: hospedajesPorDisponibilidad, isLoading: isLoadingDisponibilidad } = useHospedajesPorDisponibilidad(
+  const { data: hospedajesPorDisponibilidad, preciosCalculados: preciosCalculadosPorHospedaje, isLoading: isLoadingDisponibilidad } = useHospedajesPorDisponibilidad(
     checkInDate,
     checkOutDate,
     guests
@@ -511,6 +541,21 @@ export default function SearchPage() {
       )
     }
 
+    // Actualizar precios con precios calculados si hay fechas
+    if (checkInDate && checkOutDate && Object.keys(preciosCalculadosPorHospedaje).length > 0) {
+      filtered = filtered.map((hotel: any) => {
+        const precioCalculado = preciosCalculadosPorHospedaje[hotel.id]
+        if (precioCalculado && precioCalculado > 0) {
+          console.log(`🏨 Hospedaje ${hotel.name}: precio original=${hotel.price}, precio calculado=${precioCalculado}`)
+          return {
+            ...hotel,
+            price: precioCalculado
+          }
+        }
+        return hotel
+      })
+    }
+
     // Ordenar resultados
     switch (sortOption) {
       case "price-low":
@@ -541,7 +586,7 @@ export default function SearchPage() {
     }
 
     return filtered
-  }, [hospedajesFiltradosBasicos, checkInDate, checkOutDate, hospedajesPorDisponibilidad, guests, hospedajesPorCapacidad, selectedRoomServices, hospedajesConServiciosHabitacion, sortOption])
+  }, [hospedajesFiltradosBasicos, checkInDate, checkOutDate, hospedajesPorDisponibilidad, guests, hospedajesPorCapacidad, selectedRoomServices, hospedajesConServiciosHabitacion, sortOption, preciosCalculadosPorHospedaje])
 
   // Efecto para sincronizar estados cuando cambien los searchParams
   useEffect(() => {

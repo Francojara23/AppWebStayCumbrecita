@@ -17,7 +17,7 @@ import { toast } from "@/hooks/use-toast"
 
 export interface PriceRule {
   id: string
-  tipo: "EVENTO" | "FINDE_LARGO" | "FINDE" | "TEMPORADA"
+  tipo: "EVENTO" | "FINDE_LARGO" | "FINDE" | "TEMPORADA" | "DIAS_SEMANA"
   desde?: string
   hasta?: string
   incrementoPct?: number
@@ -104,7 +104,16 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
     if (!formData.valor || isNaN(Number(formData.valor))) return "Debe ingresar un valor válido"
 
     const valor = Number(formData.valor)
-    if (valor <= 0) return "El valor debe ser mayor a 0"
+    
+    // Para días de semana, permitir valores negativos (descuentos)
+    if (formData.tipo === "DIAS_SEMANA") {
+      if (valor === 0) return "El valor no puede ser 0"
+      if (valor < -99) return "El descuento no puede ser mayor al 99%"
+      if (valor > 200) return "El incremento no puede ser mayor al 200%"
+    } else {
+      // Para otros tipos, solo valores positivos
+      if (valor <= 0) return "El valor debe ser mayor a 0"
+    }
 
     // Validar fechas según el tipo
     if (formData.tipo === "EVENTO") {
@@ -203,6 +212,7 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
 
   const formatRuleRange = (rule: PriceRule) => {
     if (rule.tipo === "FINDE") return "Todos los fines de semana"
+    if (rule.tipo === "DIAS_SEMANA") return "Lunes a Jueves"
     if (rule.tipo === "EVENTO") return rule.desde ? format(new Date(rule.desde), "dd/MM/yyyy", { locale: es }) : ""
     if (rule.desde && rule.hasta) {
       return `${format(new Date(rule.desde), "dd/MM/yyyy", { locale: es })} - ${format(new Date(rule.hasta), "dd/MM/yyyy", { locale: es })}`
@@ -211,8 +221,12 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
   }
 
   const formatRuleValue = (rule: PriceRule) => {
-    if (rule.incrementoFijo) return `+$${rule.incrementoFijo}`
-    if (rule.incrementoPct) return `+${rule.incrementoPct}%`
+    if (rule.incrementoFijo) {
+      return rule.incrementoFijo >= 0 ? `+$${rule.incrementoFijo}` : `-$${Math.abs(rule.incrementoFijo)}`
+    }
+    if (rule.incrementoPct) {
+      return rule.incrementoPct >= 0 ? `+${rule.incrementoPct}%` : `${rule.incrementoPct}%`
+    }
     return ""
   }
 
@@ -267,6 +281,7 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
                     <SelectItem value="FINDE_LARGO">Fin de semana largo</SelectItem>
                     <SelectItem value="FINDE">Fin de semana</SelectItem>
                     <SelectItem value="TEMPORADA">Temporada</SelectItem>
+                    <SelectItem value="DIAS_SEMANA">Días de semana</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -348,7 +363,7 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
                   <Input
                     id="valor"
                     type="number"
-                    placeholder="0"
+                    placeholder={formData.tipo === "DIAS_SEMANA" ? "-15 (descuento)" : "20 (incremento)"}
                     value={formData.valor}
                     onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
                     className="flex-1"
@@ -366,6 +381,11 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.tipo === "DIAS_SEMANA" && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Usa valores negativos para descuentos (ej: -15 = 15% de descuento)
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end space-x-2 pt-4">
@@ -388,7 +408,7 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
               <TableRow>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Rango</TableHead>
-                <TableHead>Suplemento</TableHead>
+                <TableHead>Ajuste</TableHead>
                 <TableHead>Activa</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
@@ -401,6 +421,7 @@ export function PriceRulesBuilder({ rules, onRulesChange, basePrice }: PriceRule
                     {rule.tipo === "FINDE_LARGO" && "Fin de semana largo"}
                     {rule.tipo === "FINDE" && "Fin de semana"}
                     {rule.tipo === "TEMPORADA" && "Temporada"}
+                    {rule.tipo === "DIAS_SEMANA" && "Días de semana"}
                   </TableCell>
                   <TableCell>{formatRuleRange(rule)}</TableCell>
                   <TableCell>{formatRuleValue(rule)}</TableCell>

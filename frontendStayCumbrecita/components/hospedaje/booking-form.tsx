@@ -44,6 +44,12 @@ const isWeekend = (date: Date): boolean => {
   return day === 0 || day === 6 // 0 = domingo, 6 = sábado
 }
 
+// Función para verificar si una fecha es día de semana (lunes a jueves)
+const isWeekday = (date: Date): boolean => {
+  const day = date.getDay()
+  return day >= 1 && day <= 4 // 1 = lunes, 2 = martes, 3 = miércoles, 4 = jueves
+}
+
 // Función para verificar si una fecha está en un rango de temporada
 const isInTemporadaRange = (date: Date, desde: string, hasta: string): boolean => {
   const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
@@ -78,8 +84,16 @@ const calculateDailyPrices = (
         const increment = basePrice * (ajuste.incrementoPct / 100)
         dayPrice += increment
         adjustments.push(`Temporada +${ajuste.incrementoPct}%`)
+      } else if (ajuste.tipo === 'DIAS_SEMANA' && isWeekday(currentDate)) {
+        const adjustment = basePrice * (ajuste.incrementoPct / 100)
+        dayPrice += adjustment
+        const sign = ajuste.incrementoPct >= 0 ? '+' : ''
+        adjustments.push(`Días de semana ${sign}${ajuste.incrementoPct}%`)
       }
     })
+    
+    // Asegurar que el precio no sea negativo (mínimo $1)
+    dayPrice = Math.max(dayPrice, 1)
     
     breakdown.push({
       date: currentDate.toISOString().split('T')[0],

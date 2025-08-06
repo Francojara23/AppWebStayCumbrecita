@@ -10,7 +10,8 @@ import {
   UploadedFile, 
   UseGuards,
   Request,
-  Res
+  Res,
+  Query
 } from '@nestjs/common';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -18,6 +19,7 @@ import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
 import { ChatbotService } from './chatbot.service';
 import { UploadPdfDto } from './dto/upload-pdf.dto';
 import { UpdateTonoDto } from './dto/update-tono.dto';
+import { GetUserConversationsDto } from './dto/user-conversations.dto';
 
 @Controller('chatbot')
 export class ChatbotController {
@@ -109,5 +111,44 @@ export class ChatbotController {
   async markAsTrained(@Param('hospedajeId') hospedajeId: string) {
     await this.chatbotService.markAsTrained(hospedajeId);
     return { message: 'Documento marcado como entrenado' };
+  }
+
+  // ========== ENDPOINTS PARA HISTORIAL DE CONVERSACIONES ==========
+
+  @Get('my-conversations')
+  @UseGuards(JwtAuthGuard)
+  async getMyConversations(
+    @Request() req: any,
+    @Query() query: GetUserConversationsDto
+  ) {
+    console.log('📞 Usuario solicitando sus conversaciones:', {
+      userId: req.user.id,
+      query
+    });
+    
+    return await this.chatbotService.getUserConversations(
+      req.user.id.toString(),
+      query
+    );
+  }
+
+  @Get('conversation/:hospedajeId/:sessionId')
+  @UseGuards(JwtAuthGuard)
+  async getConversationDetail(
+    @Request() req: any,
+    @Param('hospedajeId') hospedajeId: string,
+    @Param('sessionId') sessionId: string
+  ) {
+    console.log('📖 Usuario solicitando detalle de conversación:', {
+      userId: req.user.id,
+      hospedajeId,
+      sessionId
+    });
+    
+    return await this.chatbotService.getConversationDetail(
+      req.user.id.toString(),
+      hospedajeId,
+      sessionId
+    );
   }
 }

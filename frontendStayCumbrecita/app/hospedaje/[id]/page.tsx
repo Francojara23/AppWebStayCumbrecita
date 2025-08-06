@@ -28,6 +28,11 @@ const isWeekend = (date: Date): boolean => {
   return day === 5 || day === 6 || day === 0 // viernes, sábado, domingo (como el backend)
 }
 
+const isWeekday = (date: Date): boolean => {
+  const day = date.getDay()
+  return day >= 1 && day <= 4 // 1 = lunes, 2 = martes, 3 = miércoles, 4 = jueves
+}
+
 const isInTemporadaRange = (date: Date, desde: string, hasta: string): boolean => {
   const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
   return dateStr >= desde && dateStr <= hasta
@@ -68,6 +73,22 @@ const calculateDailyPrices = (
       if (ajusteFinde && ajusteFinde.incrementoPct !== undefined) {
         dayPrice = dayPrice * (1 + ajusteFinde.incrementoPct / 100)
         adjustments.push(`Fin de semana +${ajusteFinde.incrementoPct}%`)
+      }
+    }
+    
+    // Aplicar ajuste de días de semana (lunes a jueves) - Puede ser descuento
+    if (isWeekday(currentDate)) {
+      const ajusteDiasSemana = ajustes.find(ajuste => 
+        ajuste.active && ajuste.tipo === 'DIAS_SEMANA'
+      )
+      
+      if (ajusteDiasSemana && ajusteDiasSemana.incrementoPct !== undefined) {
+        dayPrice = dayPrice * (1 + ajusteDiasSemana.incrementoPct / 100)
+        const sign = ajusteDiasSemana.incrementoPct >= 0 ? '+' : ''
+        adjustments.push(`Días de semana ${sign}${ajusteDiasSemana.incrementoPct}%`)
+        
+        // Asegurar que el precio no sea negativo (mínimo $1)
+        dayPrice = Math.max(dayPrice, 1)
       }
     }
     
@@ -207,11 +228,25 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       
       selectedRoomsList.forEach(room => {
         const basePrice = parseFloat(room.precioBase?.toString() || '0')
-        const ajustes = (room as any).ajustesPrecio || []
+        
+        // ✅ VALIDAR existencia de ajustesPrecio
+        const ajustes = Array.isArray((room as any).ajustesPrecio) ? (room as any).ajustesPrecio : []
+        
+        console.log(`🔍 [BookingModal] Datos de habitación ${room.nombre}:`, {
+          ajustesPrecio: (room as any).ajustesPrecio,
+          ajustesValidos: ajustes,
+          tieneAjustes: ajustes.length > 0
+        });
         
         // Aplicar cálculo de precios con ajustes para esta habitación
         const priceCalculation = calculateDailyPrices(checkInDate, checkOutDate, basePrice, ajustes)
         subtotalConAjustes += priceCalculation.totalPrice
+        
+        console.log(`💰 [BookingModal] Habitación ${room.nombre}:`, {
+          precioBase: basePrice,
+          ajustesAplicados: ajustes.length,
+          totalHabitacion: priceCalculation.totalPrice
+        });
       })
       
       // Calcular precio promedio por noche CON ajustes
@@ -486,6 +521,48 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     
     const finalAvailability = isAvailable; // Solo verificar disponibilidad por fechas
     
+    // Calcular precio con ajustes si hay fechas seleccionadas
+    let finalPrice = habitacionGrupo.precioBase;
+    if (fechaInicio && fechaFin) {
+      try {
+        const checkInDate = new Date(fechaInicio + 'T12:00:00');
+        const checkOutDate = new Date(fechaFin + 'T12:00:00');
+        const basePrice = parseFloat(habitacionGrupo.precioBase?.toString() || '0');
+        
+        // ✅ VALIDAR existencia de ajustesPrecio
+        const ajustes = Array.isArray(habitacionGrupo.ajustesPrecio) ? habitacionGrupo.ajustesPrecio : [];
+        
+        console.log(`🔍 [HotelRooms] Datos de habitación ${habitacionGrupo.nombre}:`, {
+          ajustesPrecio: habitacionGrupo.ajustesPrecio,
+          ajustesValidos: ajustes,
+          tieneAjustes: ajustes.length > 0
+        });
+        
+        // Solo calcular ajustes si hay fechas y ajustes válidos
+        if (ajustes.length > 0) {
+          const priceCalculation = calculateDailyPrices(checkInDate, checkOutDate, basePrice, ajustes);
+          const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+          finalPrice = Math.round(priceCalculation.totalPrice / nights); // Precio promedio por noche
+          
+          console.log(`💰 [HotelRooms] Habitación ${habitacionGrupo.nombre} - CON AJUSTES:`, {
+            precioBase: habitacionGrupo.precioBase,
+            precioConAjustes: finalPrice,
+            descuentoAplicado: finalPrice < basePrice ? 'Sí' : 'No',
+            ajustesUsados: ajustes.length
+          });
+        } else {
+          console.log(`💰 [HotelRooms] Habitación ${habitacionGrupo.nombre} - SIN AJUSTES:`, {
+            precioBase: habitacionGrupo.precioBase,
+            razon: ajustes.length === 0 ? 'No hay ajustes configurados' : 'Ajustes inválidos'
+          });
+        }
+      } catch (error) {
+        console.error(`❌ Error calculando precio para habitación ${habitacionGrupo.id}:`, error);
+        // En caso de error, usar precio base
+        finalPrice = habitacionGrupo.precioBase;
+      }
+    }
+
     return {
       id: habitacionGrupo.id, // ID representativo del grupo
       name: habitacionGrupo.nombre, // Nombre sin numeración
@@ -493,7 +570,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       descripcionLarga: habitacionGrupo.descripcionLarga,
       capacity: habitacionGrupo.capacidad,
       capacidad: habitacionGrupo.capacidad, // Mantener ambos campos para compatibilidad
-      price: habitacionGrupo.precioBase,
+      price: finalPrice,
       
       // Campos de compatibilidad
       available: habitacionGrupo.cantidadDisponible || 0,
@@ -546,9 +623,11 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
               rating={averageRating}
               reviewCount={opiniones?.length || 0}
               location={hospedaje.direccion || "La Cumbrecita, Córdoba"}
-              price={habitaciones?.data?.length 
-                ? Math.min(...habitaciones.data.map(h => h.precioBase))
-                : 15000
+              price={hotelRooms?.length 
+                ? Math.min(...hotelRooms.map((h: any) => h.price))
+                : (habitaciones?.data?.length 
+                    ? Math.min(...habitaciones.data.map((h: any) => h.precioBase))
+                    : 15000)
               }
             />
 
