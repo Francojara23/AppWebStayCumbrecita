@@ -14,6 +14,7 @@ interface BookingFormProps {
   priceAdjustments?: any[] // Ajustes de precio de la habitación principal
   onReservation: () => void
   onDatesChange?: (checkIn: Date, checkOut: Date, guests: number) => void // Callback para actualizar URL
+  onGuestsRoomsChange?: (guests: number, rooms: number) => void // Callback para actualizar URL incluso sin fechas
   initialCheckIn?: Date
   initialCheckOut?: Date
   initialGuests?: number
@@ -112,6 +113,7 @@ export default function BookingForm({
   priceAdjustments = [],
   onReservation, 
   onDatesChange,
+  onGuestsRoomsChange,
   initialCheckIn,
   initialCheckOut,
   initialGuests = 2,
@@ -217,6 +219,10 @@ export default function BookingForm({
   // Función para manejar cambio de huéspedes
   const handleGuestsChange = (newGuests: number) => {
     setGuests(newGuests)
+    // Notificar cambio de filtros aunque no existan fechas
+    if (onGuestsRoomsChange) {
+      onGuestsRoomsChange(newGuests, rooms)
+    }
     // Notificar el cambio si hay fechas válidas
     if (checkInDate && checkOutDate && onDatesChange) {
       onDatesChange(checkInDate, checkOutDate, newGuests)
@@ -309,7 +315,18 @@ export default function BookingForm({
           <select
             className="w-full border rounded-md p-2"
             value={rooms}
-            onChange={(e) => setRooms(Number.parseInt(e.target.value))}
+          onChange={(e) => {
+            const newRooms = Number.parseInt(e.target.value)
+            setRooms(newRooms)
+            // Notificar cambio de filtros aunque no existan fechas
+            if (onGuestsRoomsChange) {
+              onGuestsRoomsChange(guests, newRooms)
+            }
+            // Si hay fechas válidas, mantener comportamiento existente
+            if (checkInDate && checkOutDate && onDatesChange) {
+              onDatesChange(checkInDate, checkOutDate, guests)
+            }
+          }}
           >
             {[1, 2, 3, 4].map((num) => (
               <option key={num} value={num}>

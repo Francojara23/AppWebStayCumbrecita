@@ -35,6 +35,8 @@ interface HotelTabsProps {
   selectedRoomIds: string[]
   isLoadingDisponibilidad?: boolean
   requiredGuests?: number // Cantidad de huéspedes requeridos para mostrar en mensajes
+  remainingRoomsAllowed?: number
+  maxRoomsAllowed?: number
 }
 
 export default function HotelTabs({
@@ -55,6 +57,8 @@ export default function HotelTabs({
   selectedRoomIds,
   isLoadingDisponibilidad,
   requiredGuests,
+  remainingRoomsAllowed,
+  maxRoomsAllowed,
 }: HotelTabsProps) {
   return (
     <Tabs defaultValue="rooms" className="mt-8">
@@ -81,6 +85,8 @@ export default function HotelTabs({
           selectedRoomIds={selectedRoomIds}
           isLoadingDisponibilidad={isLoadingDisponibilidad}
           requiredGuests={requiredGuests}
+          remainingRoomsAllowed={remainingRoomsAllowed}
+          maxRoomsAllowed={maxRoomsAllowed}
         />
       </TabsContent>
 

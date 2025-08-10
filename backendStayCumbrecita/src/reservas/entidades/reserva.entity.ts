@@ -4,7 +4,7 @@ import { Hospedaje } from "../../hospedajes/entidades/hospedaje.entity";
 import { Usuario } from "../../users/users.entity";
 import { ReservaLinea } from "./reserva-linea.entity.js";
 import { Pago } from "../../pagos/entidades/pago.entity";
-import { Acompaniante } from "./acompaniante.entity.js";
+
 import { HuespedReserva } from "./huesped-reserva.entity";
 import { EstadoReserva } from "../../common/enums/estado-reserva.enum";
 
@@ -49,8 +49,7 @@ export class Reserva extends BaseEntityAudit {
   @OneToMany(() => Pago, (pago) => pago.reserva)
   pagos: Pago[];
 
-  @OneToMany(() => Acompaniante, (acompaniante) => acompaniante.reserva)
-  acompaniantes: Acompaniante[];
+
 
   @OneToMany(() => HuespedReserva, (huesped) => huesped.reserva)
   huespedes: HuespedReserva[];

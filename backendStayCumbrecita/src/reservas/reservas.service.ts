@@ -9,7 +9,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource, In } from "typeorm";
 import { Reserva } from "./entidades/reserva.entity";
 import { ReservaLinea } from "./entidades/reserva-linea.entity";
-import { Acompaniante } from "./entidades/acompaniante.entity";
+
 import { HuespedReserva } from "./entidades/huesped-reserva.entity";
 import { Pago } from "../pagos/entidades/pago.entity";
 import { CrearReservaDto } from "./dto/crear-reserva.dto";
@@ -20,13 +20,21 @@ import { HospedajesService } from "../hospedajes/hospedajes.service";
 import { NotificacionesService } from "../notificaciones/notificaciones.service";
 import { QrCodeService } from "../qr-code/qr-code.service";
 import { CotizarReservaDto } from "./dto/cotizar-reserva.dto";
-import { CheckinDto } from "./dto/checkin.dto";
+
 import { CheckoutDto } from "./dto/checkout.dto";
 import { ApproveTransferDto } from "./dto/approve-transfer.dto";
-import { EstadoPago } from "../pagos/entidades/pago.entity";
+import { EstadoPago, MetodoPago } from "../pagos/entidades/pago.entity";
 import { VerificarQrDto } from "./dto/checkin/verificar-qr.dto";
 import { RealizarCheckinDto } from "./dto/checkin/realizar-checkin.dto";
+import { CheckinCompletoDto, HuespedPorHabitacionDto, DatosPagoCheckinDto } from "./dto/checkin/checkin-completo.dto";
+import { DatosCheckinResponseDto } from "./dto/checkin/datos-checkin-response.dto";
+import { ConfirmarCheckoutDto } from "./dto/checkout/confirmar-checkout.dto";
+import { DatosCheckoutResponseDto } from "./dto/checkout/datos-checkout-response.dto";
+import { AgregarCargoDto } from "./dto/checkout/agregar-cargo.dto";
+import { TarjetaCheckin } from "../tarjetas/entidades/tarjeta-checkin.entity";
+import { TarjetasService } from "../tarjetas/tarjetas.service";
 import { Usuario } from "../users/users.entity";
+import { PagosService } from "../pagos/pagos.service";
 
 /**
  * Servicio que maneja la lógica de negocio relacionada con las reservas
@@ -40,12 +48,13 @@ export class ReservasService {
     private reservaRepository: Repository<Reserva>,
     @InjectRepository(ReservaLinea)
     private reservaLineaRepository: Repository<ReservaLinea>,
-    @InjectRepository(Acompaniante)
-    private acompanianteRepository: Repository<Acompaniante>,
+
     @InjectRepository(HuespedReserva)
     private huespedReservaRepository: Repository<HuespedReserva>,
     @InjectRepository(Pago)
     private pagosRepository: Repository<Pago>,
+    @InjectRepository(TarjetaCheckin)
+    private tarjetaCheckinRepository: Repository<TarjetaCheckin>,
     private dataSource: DataSource,
     @Inject(forwardRef(() => HabitacionesService))
     private habitacionesService: HabitacionesService,
@@ -53,10 +62,14 @@ export class ReservasService {
     private hospedajesService: HospedajesService,
     private notificacionesService: NotificacionesService,
     private qrCodeService: QrCodeService,
+    private tarjetasService: TarjetasService,
+    @Inject(forwardRef(() => PagosService))
+    private pagosService: PagosService,
   ) {}
 
   /**
-   * Crea una nueva reserva con sus líneas y acompañantes
+   * Crea una nueva reserva con sus líneas
+   * Los huéspedes se registran durante el check-in
    * @param crearReservaDto Datos de la reserva a crear
    * @param turistaId ID del turista que realiza la reserva
    * @returns Reserva creada con sus relaciones
@@ -148,45 +161,7 @@ export class ReservasService {
       
       console.log('✅ Reserva creada con estado:', reservaGuardada.estado);
 
-      // Generar QR para la reserva
-      try {
-        // Obtener datos necesarios para el QR
-        const turista = await queryRunner.manager.findOne(Usuario, { 
-          where: { id: turistaId } 
-        });
-        
-        const codigo = reservaGuardada.id.substring(0, 8).toUpperCase();
-        const cantidadHuespedes = crearReservaDto.lineas.reduce((total, linea) => total + linea.personas, 0);
-        
-        // Obtener nombre de la primera habitación para el QR
-        const primeraHabitacion = await this.habitacionesService.findOne(
-          crearReservaDto.lineas[0].habitacionId
-        );
-        const nombreHabitacion = primeraHabitacion.tipoHabitacion?.nombre || 'Habitación';
-        
-        const qrData = {
-          reservaId: reservaGuardada.id,
-          codigo,
-          hospedaje: hospedaje.nombre,
-          habitacion: nombreHabitacion,
-          fechaInicio: reservaGuardada.fechaInicio,
-          fechaFin: reservaGuardada.fechaFin,
-          huesped: turista ? `${turista.nombre} ${turista.apellido}` : 'Huésped',
-          adultos: cantidadHuespedes,
-          ninos: 0, // Por ahora no tenemos niños en el sistema
-        };
-
-        const { qrCloudinaryUrl } = await this.qrCodeService.generarQrReserva(qrData);
-        
-        // Guardar la URL del QR en la reserva
-        reservaGuardada.codigoQrUrl = qrCloudinaryUrl;
-        await queryRunner.manager.save(reservaGuardada);
-        
-        console.log('✅ QR generado y guardado para reserva:', reservaGuardada.id);
-      } catch (qrError) {
-        console.error('❌ Error generando QR para reserva:', qrError);
-        // No fallar la transacción por errores de QR
-      }
+      // Mover la generación del QR después de crear las líneas y calcular montos
 
       // Crear las líneas de reserva
       let montoTotal = 0;
@@ -212,22 +187,27 @@ export class ReservasService {
         montoTotal += reservaLinea.precioFinal;
       }
 
-      // Crear acompañantes si existen
-      if (crearReservaDto.acompaniantes?.length) {
-        const acompaniantes = crearReservaDto.acompaniantes.map((acomp) =>
-          this.acompanianteRepository.create({
-            ...acomp,
-            reserva: reservaGuardada,
-          }),
-        );
-        await queryRunner.manager.save(acompaniantes);
-      }
+      // Nota: Los huéspedes se registrarán durante el check-in
 
       // Solo actualizar montos si no se pasaron datos reales del pago
       if (!crearReservaDto.totalRealPago) {
         reservaGuardada.montoTotal = montoTotal;
         reservaGuardada.impuestos21 = montoTotal * 0.21;
         await queryRunner.manager.save(reservaGuardada);
+      }
+
+      // Generar QR optimizado para la reserva
+      try {
+        const { qrCloudinaryUrl } = await this.qrCodeService.generarQrReserva(reservaGuardada.id);
+        
+        // Guardar la URL del QR en la reserva
+        reservaGuardada.codigoQrUrl = qrCloudinaryUrl;
+        await queryRunner.manager.save(reservaGuardada);
+        
+        console.log('✅ QR optimizado generado y guardado para reserva:', reservaGuardada.id);
+      } catch (qrError) {
+        console.error('❌ Error generando QR optimizado para reserva:', qrError);
+        // No fallar la transacción por errores de QR
       }
 
       // Asegurar que el estado se persiste correctamente antes del commit
@@ -354,7 +334,7 @@ export class ReservasService {
           "turista", 
           "lineas",
           "lineas.habitacion",
-          "acompaniantes",
+
           "pagos"
         ],
       });
@@ -385,7 +365,7 @@ export class ReservasService {
         "turista",
         "lineas",
         "lineas.habitacion",
-        "acompaniantes",
+        "huespedes",
       ],
     });
   }
@@ -450,7 +430,7 @@ export class ReservasService {
         "lineas",
         "lineas.habitacion",
         "lineas.habitacion.tipoHabitacion",
-        "acompaniantes",
+        "huespedes",
         "pagos"
       ],
       order: { createdAt: 'DESC' }
@@ -475,7 +455,7 @@ export class ReservasService {
         "turista",
         "lineas",
         "lineas.habitacion",
-        "acompaniantes",
+        "huespedes",
       ],
     });
 
@@ -642,97 +622,84 @@ export class ReservasService {
     };
   }
 
-  async registrarCheckIn(id: string, dto: CheckinDto) {
-    const reserva = await this.reservaRepository.findOne({
-      where: { id },
-      relations: ["acompaniantes", "hospedaje", "turista"],
-    });
-
-    if (!reserva) {
-      throw new NotFoundException("Reserva no encontrada");
-    }
-
-    if (reserva.estado !== EstadoReserva.PAGADA) {
-      throw new BadRequestException(
-        "La reserva debe estar pagada para realizar el check-in",
-      );
-    }
-
-    // Registrar acompañantes
-    const acompaniantes = dto.acompanantes.map((acomp) =>
-      this.acompanianteRepository.create({
-        ...acomp,
-        reserva,
-      }),
-    );
-
-    await this.acompanianteRepository.save(acompaniantes);
-
-    // Actualizar estado de la reserva
-    reserva.estado = EstadoReserva.CHECK_IN;
-    const reservaActualizada = await this.reservaRepository.save(reserva);
-
-    // Enviar notificación de check-in
-    try {
-      await this.notificacionesService.crearNotificacionAutomatica(
-        "check_in",
-        reserva.turista.id,
-        {
-          reservaId: reserva.id,
-          hospedaje: reserva.hospedaje.nombre,
-          hospedajeId: reserva.hospedaje.id,
-          fechaCheckIn: new Date(),
-        },
-        ["IN_APP", "EMAIL"],
-      );
-    } catch (notifError) {
-      console.error("Error enviando notificación de check-in:", notifError);
-    }
-
-    return reservaActualizada;
-  }
+  // MÉTODO ELIMINADO: registrarCheckIn (usaba acompañantes)
 
   async registrarCheckOut(id: string, dto: CheckoutDto) {
-    const reserva = await this.reservaRepository.findOne({
-      where: { id },
-      relations: ["hospedaje", "turista"],
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!reserva) {
-      throw new NotFoundException("Reserva no encontrada");
-    }
-
-    if (reserva.estado !== EstadoReserva.CHECK_IN) {
-      throw new BadRequestException(
-        "La reserva debe estar en check-in para realizar el check-out",
-      );
-    }
-
-    reserva.estado = EstadoReserva.CHECK_OUT;
-    if (dto.observaciones) {
-      reserva.observacion = dto.observaciones;
-    }
-
-    const reservaActualizada = await this.reservaRepository.save(reserva);
-
-    // Enviar notificación de check-out
     try {
-      await this.notificacionesService.crearNotificacionAutomatica(
-        "check_out",
-        reserva.turista.id,
-        {
-          reservaId: reserva.id,
-          hospedaje: reserva.hospedaje.nombre,
-          hospedajeId: reserva.hospedaje.id,
-          fechaCheckOut: new Date(),
-        },
-        ["IN_APP", "EMAIL"],
-      );
-    } catch (notifError) {
-      console.error("Error enviando notificación de check-out:", notifError);
-    }
+      const reserva = await queryRunner.manager.findOne(Reserva, {
+        where: { id },
+        relations: ["hospedaje", "turista"],
+      });
 
-    return reservaActualizada;
+      if (!reserva) {
+        throw new NotFoundException("Reserva no encontrada");
+      }
+
+      if (reserva.estado !== EstadoReserva.CHECK_IN) {
+        throw new BadRequestException(
+          "La reserva debe estar en check-in para realizar el check-out",
+        );
+      }
+
+      reserva.estado = EstadoReserva.CHECK_OUT;
+      if (dto.observaciones) {
+        reserva.observacion = dto.observaciones;
+      }
+
+      const reservaActualizada = await queryRunner.manager.save(reserva);
+
+      // 🔥 ELIMINAR TARJETAS DE CHECK-IN (ÚNICO DELETE PERMITIDO)
+      await this.eliminarTarjetasCheckin(reserva.id, queryRunner);
+
+      await queryRunner.commitTransaction();
+
+      // Enviar notificación de check-out
+      try {
+        await this.notificacionesService.crearNotificacionAutomatica(
+          "check_out",
+          reserva.turista.id,
+          {
+            reservaId: reserva.id,
+            hospedaje: reserva.hospedaje.nombre,
+            hospedajeId: reserva.hospedaje.id,
+            fechaCheckOut: new Date(),
+          },
+          ["IN_APP", "EMAIL"],
+        );
+      } catch (notifError) {
+        console.error("Error enviando notificación de check-out:", notifError);
+      }
+
+      return reservaActualizada;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Elimina las tarjetas de check-in de una reserva
+   * ÚNICO MÉTODO DELETE PERMITIDO EN EL SISTEMA
+   */
+  private async eliminarTarjetasCheckin(reservaId: string, queryRunner: any) {
+    try {
+      const tarjetasEliminadas = await queryRunner.manager.delete(TarjetaCheckin, {
+        reserva: { id: reservaId }
+      });
+
+      console.log(`🗑️ SEGURIDAD: Eliminadas ${tarjetasEliminadas.affected || 0} tarjetas de check-in para reserva ${reservaId}`);
+      
+      return tarjetasEliminadas;
+    } catch (error) {
+      console.error('❌ Error eliminando tarjetas de check-in:', error);
+      throw new BadRequestException('Error eliminando datos de tarjetas temporales');
+    }
   }
 
   async aprobarTransferencia(id: string, dto: ApproveTransferDto) {
@@ -803,7 +770,7 @@ export class ReservasService {
         "lineas",
         "lineas.habitacion",
         "lineas.habitacion.tipoHabitacion",
-        "acompaniantes",
+        "huespedes",
         "pagos"
       ],
       order: { createdAt: 'DESC' }
@@ -886,7 +853,7 @@ export class ReservasService {
         "lineas.habitacion",
         "lineas.habitacion.tipoHabitacion",
         "lineas.habitacion.imagenes",
-        "acompaniantes",
+        "huespedes",
         "pagos"
       ],
       order: { createdAt: 'DESC' }
@@ -897,38 +864,48 @@ export class ReservasService {
   }
 
   /**
-   * Verifica un código QR de reserva
+   * Verifica un código QR de reserva y retorna todos los datos necesarios para check-in
    * @param dto Datos del QR a verificar
-   * @returns Datos verificados del QR o null si es inválido
+   * @returns Datos completos verificados del QR para el proceso de check-in
    */
   async verificarQr(dto: VerificarQrDto) {
     try {
+      console.log('🔍 Verificando QR optimizado, longitud de datos:', dto.qrData.length);
+      
       const qrPayload = await this.qrCodeService.verificarQrReserva(dto.qrData);
       
       if (!qrPayload) {
         throw new BadRequestException('Código QR inválido o expirado');
       }
 
-      // Verificar que la reserva existe
+      console.log('✅ QR optimizado decodificado exitosamente, reservaId:', qrPayload.reservaId);
+      console.log('📊 QR contiene solo:', Object.keys(qrPayload));
+
+      // Buscar la reserva completa con todas las relaciones
       const reserva = await this.reservaRepository.findOne({
         where: { id: qrPayload.reservaId },
-        relations: ['hospedaje', 'turista', 'lineas', 'lineas.habitacion', 'lineas.habitacion.tipoHabitacion']
+        relations: [
+          'hospedaje',
+          'turista', 
+          'lineas', 
+          'lineas.habitacion', 
+          'lineas.habitacion.tipoHabitacion',
+          'pagos',
+          'pagos.tarjeta',
+          'huespedes'
+        ]
       });
 
       if (!reserva) {
-        throw new NotFoundException('Reserva no encontrada');
+        throw new NotFoundException('Reserva no encontrada en la base de datos');
       }
 
-      // Verificar que la reserva está en estado válido para check-in (CONFIRMADA o PAGADA)
+      // Verificar que la reserva está en estado válido para check-in
       if (![EstadoReserva.CONFIRMADA, EstadoReserva.PAGADA].includes(reserva.estado)) {
         throw new BadRequestException(
           `La reserva debe estar confirmada o pagada para realizar check-in. Estado actual: ${reserva.estado}`
         );
       }
-
-      // Calcular la cantidad de huéspedes adicionales (total - 1)
-      const totalHuespedes = reserva.lineas.reduce((total, linea) => total + linea.personas, 0);
-      const huespedesAdicionales = Math.max(0, totalHuespedes - 1);
 
       // Verificar si es el día de check-in o posterior
       const hoy = new Date();
@@ -945,34 +922,63 @@ export class ReservasService {
         throw new BadRequestException('Esta reserva ya tiene check-in realizado');
       }
 
+            // Calcular número de noches
+      const fechaInicioDate = new Date(reserva.fechaInicio);
+      const fechaFinDate = new Date(reserva.fechaFin);
+      const noches = Math.ceil((fechaFinDate.getTime() - fechaInicioDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Procesar habitaciones desde la BD
+      const habitacionesParaCheckin = reserva.lineas.map(linea => ({
+        id: linea.habitacion.id,
+        nombre: linea.habitacion.nombre,
+        capacidad: linea.habitacion.capacidad,
+        personasReservadas: linea.personas,
+        huespedes: [] // Se llenarán en el step 2
+      }));
+
+      // Procesar datos de pago existente desde la BD
+      let pagoExistente: any = null;
+      const pagoAprobado = reserva.pagos?.find(p => p.estado === 'APROBADO');
+      if (pagoAprobado && pagoAprobado.tarjeta) {
+        pagoExistente = {
+          id: pagoAprobado.id,
+          titular: pagoAprobado.tarjeta.titular || `${reserva.turista.nombre} ${reserva.turista.apellido}`,
+          numeroMasked: pagoAprobado.tarjeta.numero ? `****-****-****-${pagoAprobado.tarjeta.numero.slice(-4)}` : '****-****-****-****',
+          entidad: pagoAprobado.tarjeta.entidad || 'N/A'
+        };
+      }
+
+      // Retornar estructura completa esperada por el frontend
       return {
-        reserva: {
-          id: reserva.id,
-          codigo: reserva.id.substring(0, 8).toUpperCase(),
-          hospedaje: reserva.hospedaje.nombre,
-          fechaInicio: reserva.fechaInicio,
-          fechaFin: reserva.fechaFin,
-          turista: {
+        qrValido: true,
+        reservaCompleta: {
+          reserva: {
+            id: reserva.id,
+            codigo: reserva.id.substring(0, 8).toUpperCase(),
+            hospedaje: reserva.hospedaje.nombre,
+            fechaInicio: reserva.fechaInicio,
+            fechaFin: reserva.fechaFin,
+            noches,
+            montoTotal: reserva.montoTotal,
+            estado: reserva.estado
+          },
+          titular: {
             nombre: reserva.turista.nombre,
             apellido: reserva.turista.apellido,
-            email: reserva.turista.email,
-            telefono: reserva.turista.telefono,
-            dni: reserva.turista.dni,
+            dni: reserva.turista.dni?.toString() || '',
+            telefono: reserva.turista.telefono?.toString() || '',
+            email: reserva.turista.email || ''
           },
-          habitaciones: reserva.lineas.map(linea => ({
-            nombre: linea.habitacion.tipoHabitacion?.nombre || 'Habitación',
-            personas: linea.personas
-          })),
-          totalHuespedes,
-          huespedesAdicionales,
-        },
-        qrValido: true,
+          habitaciones: habitacionesParaCheckin,
+          pagoExistente
+        }
       };
     } catch (error) {
+      console.error('❌ Error verificando QR:', error);
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException('Error verificando código QR');
+      throw new BadRequestException('Error verificando código QR: ' + error.message);
     }
   }
 
@@ -1234,6 +1240,545 @@ export class ReservasService {
         return 'Fallido';
       default:
         return 'Pendiente';
+    }
+  }
+
+  /**
+   * Obtiene los datos necesarios para el proceso de check-in
+   * @param reservaId ID de la reserva
+   * @returns Datos formateados para el wizard de check-in
+   */
+  async getDatosCheckin(reservaId: string): Promise<DatosCheckinResponseDto> {
+    const reserva = await this.reservaRepository.findOne({
+      where: { id: reservaId },
+      relations: ['hospedaje', 'turista', 'lineas', 'lineas.habitacion', 'lineas.habitacion.tipoHabitacion', 'pagos']
+    });
+
+    if (!reserva) {
+      throw new NotFoundException('Reserva no encontrada');
+    }
+
+    // Validar estado
+    if (![EstadoReserva.CONFIRMADA, EstadoReserva.PAGADA].includes(reserva.estado)) {
+      throw new BadRequestException('La reserva debe estar confirmada o pagada para realizar check-in');
+    }
+
+    if (reserva.estado === EstadoReserva.CHECK_IN) {
+      throw new BadRequestException('Esta reserva ya tiene check-in realizado');
+    }
+
+    // Obtener pago con tarjeta si existe
+    const pagoConTarjeta = reserva.pagos.find(p => 
+      p.metodo === 'TARJETA' && p.estado === EstadoPago.APROBADO
+    );
+
+    // Formatear habitaciones con capacidades
+    const habitaciones = reserva.lineas.map(linea => ({
+      id: linea.habitacion.id,
+      nombre: linea.habitacion.nombre,
+      capacidad: linea.habitacion.capacidad,
+      personasReservadas: linea.personas,
+      huespedes: [] // Se llenan en el frontend
+    }));
+
+    // Datos del titular (pre-llenados)
+    const titular = {
+      nombre: reserva.turista.nombre,
+      apellido: reserva.turista.apellido,
+      dni: reserva.turista.dni?.toString() || '',
+      telefono: reserva.turista.telefono?.toString(),
+      email: reserva.turista.email
+    };
+
+    return {
+      reserva: {
+        id: reserva.id,
+        codigo: reserva.id.substring(0, 8).toUpperCase(),
+        hospedaje: reserva.hospedaje.nombre,
+        fechaInicio: reserva.fechaInicio,
+        fechaFin: reserva.fechaFin
+      },
+      titular,
+      habitaciones,
+      pagoExistente: pagoConTarjeta ? {
+        id: pagoConTarjeta.id,
+        titular: pagoConTarjeta.titularEncriptado,
+        numeroMasked: `****-****-****-${pagoConTarjeta.numeroEncriptado.slice(-4)}`,
+        entidad: 'VISA/MASTERCARD' // Simplificado
+      } : undefined
+    };
+  }
+
+  /**
+   * Realiza el check-in completo con wizard de 3 pasos
+   * @param dto Datos completos del check-in
+   * @param user Usuario que realiza el check-in
+   * @returns Confirmación de check-in exitoso
+   */
+  async realizarCheckinCompleto(dto: CheckinCompletoDto, user: any) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Verificar QR
+      const qrPayload = await this.qrCodeService.verificarQrReserva(dto.qrData);
+      if (!qrPayload || qrPayload.reservaId !== dto.reservaId) {
+        throw new BadRequestException('Código QR inválido');
+      }
+
+      // 2. Obtener reserva
+      const reserva = await queryRunner.manager.findOne(Reserva, {
+        where: { id: dto.reservaId },
+        relations: ['hospedaje', 'turista', 'lineas', 'lineas.habitacion', 'pagos']
+      });
+
+      if (!reserva) {
+        throw new NotFoundException('Reserva no encontrada');
+      }
+
+      if (reserva.estado === EstadoReserva.CHECK_IN) {
+        throw new BadRequestException('Esta reserva ya tiene check-in realizado');
+      }
+
+      if (![EstadoReserva.CONFIRMADA, EstadoReserva.PAGADA].includes(reserva.estado)) {
+        throw new BadRequestException('La reserva debe estar confirmada o pagada');
+      }
+
+      // 3. Validar huéspedes por habitación
+      await this.validarHuespedesPorHabitacion(reserva, dto.huespedesPorHabitacion);
+
+      // 4. Procesar datos de pago
+      await this.procesarDatosPagoCheckin(reserva, dto.datosPago, queryRunner);
+
+      // 5. Crear registros HuespedReserva
+      await this.crearHuespedesReserva(reserva, dto.huespedesPorHabitacion, queryRunner);
+
+      // 6. Cambiar estado
+      reserva.estado = EstadoReserva.CHECK_IN;
+      await queryRunner.manager.save(reserva);
+
+      await queryRunner.commitTransaction();
+      
+      console.log(`✅ Check-in completo realizado para reserva ${reserva.id} por usuario ${user.nombre}`);
+
+      return { 
+        success: true, 
+        message: 'Check-in realizado exitosamente',
+        reservaId: reserva.id,
+        codigo: reserva.id.substring(0, 8).toUpperCase()
+      };
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error('❌ Error en check-in completo:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Valida que los huéspedes asignados coincidan con las habitaciones reservadas
+   */
+  private async validarHuespedesPorHabitacion(
+    reserva: Reserva, 
+    huespedesPorHabitacion: HuespedPorHabitacionDto[]
+  ) {
+    for (const habitacionData of huespedesPorHabitacion) {
+      const linea = reserva.lineas.find(l => l.habitacion.id === habitacionData.habitacionId);
+      
+      if (!linea) {
+        throw new BadRequestException(`Habitación ${habitacionData.habitacionId} no pertenece a esta reserva`);
+      }
+
+      if (habitacionData.huespedes.length !== linea.personas) {
+        throw new BadRequestException(
+          `Habitación ${habitacionData.habitacionNombre} requiere ${linea.personas} huéspedes, recibió ${habitacionData.huespedes.length}`
+        );
+      }
+    }
+
+    // Validar total de huéspedes
+    const totalHuespedes = huespedesPorHabitacion.reduce((total, h) => total + h.huespedes.length, 0);
+    const totalPersonasReservadas = reserva.lineas.reduce((total, l) => total + l.personas, 0);
+    
+    if (totalHuespedes !== totalPersonasReservadas) {
+      throw new BadRequestException('El número total de huéspedes no coincide con la reserva');
+    }
+  }
+
+  /**
+   * Procesa los datos de pago para el check-in
+   */
+  private async procesarDatosPagoCheckin(
+    reserva: Reserva, 
+    datosPago: DatosPagoCheckinDto, 
+    queryRunner: any
+  ) {
+    if (datosPago.usarPagoExistente && datosPago.pagoExistenteId) {
+      // Copiar datos del pago existente
+      const pagoExistente = await queryRunner.manager.findOne(Pago, {
+        where: { id: datosPago.pagoExistenteId, reserva: { id: reserva.id } }
+      });
+
+      if (!pagoExistente) {
+        throw new BadRequestException('Pago no encontrado para esta reserva');
+      }
+
+      const tarjetaCheckin = queryRunner.manager.create(TarjetaCheckin, {
+        reserva,
+        titular: pagoExistente.titularEncriptado,
+        numero: pagoExistente.numeroEncriptado,
+        entidad: 'VISA', // Simplificado
+        vencimiento: pagoExistente.vencimientoEncriptado,
+        cve: pagoExistente.cveEncriptado,
+        tipo: 'CREDITO'
+      });
+
+      await queryRunner.manager.save(tarjetaCheckin);
+      console.log(`💳 Tarjeta check-in creada desde pago existente para reserva ${reserva.id}`);
+
+    } else if (datosPago.nuevaTarjeta) {
+      // Validar nueva tarjeta
+      const tarjetaValida = await this.tarjetasService.findActiveExact({
+        numero: datosPago.nuevaTarjeta.numero,
+        titular: datosPago.nuevaTarjeta.titular,
+        vencimiento: datosPago.nuevaTarjeta.vencimiento,
+        cve: datosPago.nuevaTarjeta.cve,
+        tipo: datosPago.nuevaTarjeta.tipo,
+        entidad: datosPago.nuevaTarjeta.entidad
+      });
+
+      if (!tarjetaValida) {
+        throw new BadRequestException('Tarjeta no válida o no encontrada en el sistema');
+      }
+
+      const tarjetaCheckin = queryRunner.manager.create(TarjetaCheckin, {
+        reserva,
+        ...datosPago.nuevaTarjeta
+      });
+
+      await queryRunner.manager.save(tarjetaCheckin);
+      console.log(`💳 Tarjeta check-in creada con nueva tarjeta para reserva ${reserva.id}`);
+    } else {
+      throw new BadRequestException('Debe proporcionar datos de pago válidos');
+    }
+  }
+
+  /**
+   * Crea los registros de HuespedReserva por habitación
+   */
+  private async crearHuespedesReserva(
+    reserva: Reserva, 
+    huespedesPorHabitacion: HuespedPorHabitacionDto[], 
+    queryRunner: any
+  ) {
+    // Crear titular (primer huésped de primera habitación)
+    const primeraHabitacion = huespedesPorHabitacion[0];
+    const titular = queryRunner.manager.create(HuespedReserva, {
+      reserva,
+      habitacion: { id: primeraHabitacion.habitacionId },
+      nombre: reserva.turista.nombre,
+      apellido: reserva.turista.apellido,
+      dni: reserva.turista.dni?.toString() || '',
+      telefono: reserva.turista.telefono?.toString(),
+      email: reserva.turista.email,
+      esPrincipal: true,
+      fechaCheckin: new Date()
+    });
+    await queryRunner.manager.save(titular);
+
+    // Crear acompañantes
+    for (const habitacionData of huespedesPorHabitacion) {
+      for (const [index, huespedDto] of habitacionData.huespedes.entries()) {
+        // Saltar el primer huésped de la primera habitación (ya es el titular)
+        if (habitacionData === primeraHabitacion && index === 0) continue;
+
+        const huesped = queryRunner.manager.create(HuespedReserva, {
+          reserva,
+          habitacion: { id: habitacionData.habitacionId },
+          nombre: huespedDto.nombre,
+          apellido: huespedDto.apellido,
+          dni: huespedDto.dni,
+          telefono: huespedDto.telefono,
+          email: huespedDto.email,
+          esPrincipal: false,
+          fechaCheckin: new Date()
+        });
+        await queryRunner.manager.save(huesped);
+      }
+    }
+
+    console.log(`👥 Huéspedes registrados para reserva ${reserva.id} en ${huespedesPorHabitacion.length} habitaciones`);
+  }
+
+  /**
+   * Obtiene la lista de check-ins realizados para el usuario administrativo
+   * @param user Usuario que hace la petición
+   * @returns Lista de reservas con check-in realizado
+   */
+  async getCheckinsRealizados(user: any) {
+    try {
+      console.log('🔍 Obteniendo check-ins realizados para usuario:', user.nombre);
+
+      // Obtener reservas con estado CHECK_IN que puede administrar el usuario
+      let reservas: Reserva[];
+
+      if (user.roles.includes('ADMIN')) {
+        // Admin puede ver todos los check-ins
+        reservas = await this.reservaRepository.find({
+          where: { estado: EstadoReserva.CHECK_IN },
+          relations: [
+            'hospedaje',
+            'turista',
+            'lineas',
+            'lineas.habitacion',
+            'huespedes'
+          ],
+          order: { updatedAt: 'DESC' }
+        });
+      } else {
+        // Otros roles solo pueden ver check-ins de sus hospedajes administrados
+        reservas = await this.findReservasByAdministrador(user.id);
+        reservas = reservas.filter(r => r.estado === EstadoReserva.CHECK_IN);
+      }
+
+      // Formatear datos para el frontend
+      const checkinsFormateados = reservas.map(reserva => {
+        const totalHuespedes = reserva.huespedes?.length || 0;
+        const habitaciones = reserva.lineas?.length || 0;
+
+        // Buscar el huésped principal para obtener quién realizó el check-in
+        const huespedPrincipal = reserva.huespedes?.find(h => h.esPrincipal);
+        const realizadoPor = huespedPrincipal 
+          ? `${huespedPrincipal.nombre} ${huespedPrincipal.apellido}`
+          : 'Sistema';
+
+        return {
+          id: reserva.id,
+          reservaId: reserva.id,
+          codigo: reserva.id.substring(0, 8).toUpperCase(),
+          hospedaje: reserva.hospedaje?.nombre || 'N/A',
+          titular: `${reserva.turista?.nombre || ''} ${reserva.turista?.apellido || ''}`.trim(),
+          fechaCheckin: huespedPrincipal?.fechaCheckin || reserva.updatedAt,
+          habitaciones,
+          totalHuespedes,
+          realizadoPor: `${realizadoPor} (Check-in)`,
+          estado: reserva.estado
+        };
+      });
+
+      console.log(`✅ ${checkinsFormateados.length} check-ins encontrados`);
+
+      return {
+        success: true,
+        data: checkinsFormateados,
+        message: 'Check-ins obtenidos exitosamente'
+      };
+
+    } catch (error) {
+      console.error('❌ Error obteniendo check-ins realizados:', error);
+      return {
+        success: false,
+        data: [],
+        message: 'Error al obtener check-ins realizados'
+      };
+    }
+  }
+
+  /**
+   * Obtiene datos completos de una reserva para el proceso de checkout
+   * @param reservaId ID de la reserva
+   * @returns Datos completos estructurados para el frontend
+   */
+  async getDatosCheckout(reservaId: string): Promise<DatosCheckoutResponseDto> {
+    const reserva = await this.reservaRepository.findOne({
+      where: { id: reservaId },
+      relations: [
+        'hospedaje',
+        'turista', 
+        'lineas',
+        'lineas.habitacion',
+        'lineas.habitacion.tipoHabitacion',
+        'pagos',
+        'pagos.tarjeta',
+        'huespedes',
+        'huespedes.habitacion'
+      ]
+    });
+
+    if (!reserva) {
+      throw new NotFoundException('Reserva no encontrada');
+    }
+
+    if (reserva.estado !== EstadoReserva.CHECK_IN) {
+      throw new BadRequestException('Solo se puede hacer checkout de reservas con check-in realizado');
+    }
+
+    // Calcular noches
+    const fechaInicio = new Date(reserva.fechaInicio);
+    const fechaFin = new Date(reserva.fechaFin);
+    const totalNoches = Math.ceil((fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Organizar huéspedes por habitación
+    const habitacionesMap = new Map();
+    
+    reserva.lineas.forEach(linea => {
+      if (!habitacionesMap.has(linea.habitacion.id)) {
+        habitacionesMap.set(linea.habitacion.id, {
+          id: linea.habitacion.id,
+          nombre: linea.habitacion.nombre,
+          capacidad: linea.habitacion.capacidad,
+          personasRegistradas: 0,
+          huespedes: []
+        });
+      }
+    });
+
+    // Agregar huéspedes a sus habitaciones
+    reserva.huespedes.forEach(huesped => {
+      if (huesped.habitacion) {
+        const habitacion = habitacionesMap.get(huesped.habitacion.id);
+        if (habitacion) {
+          habitacion.huespedes.push({
+            nombre: huesped.nombre,
+            apellido: huesped.apellido,
+            dni: huesped.dni,
+            telefono: huesped.telefono,
+            email: huesped.email
+          });
+          habitacion.personasRegistradas++;
+        }
+      }
+    });
+
+    // Formatear pagos
+    const pagosFormateados = reserva.pagos.map(pago => ({
+      id: pago.id,
+      concepto: 'Reserva de hospedaje', // Concepto base
+      monto: pago.montoTotal,
+      estado: pago.estado,
+      fechaPago: pago.fechaPago,
+      titularMasked: pago.tarjeta ? pago.tarjeta.titular : undefined,
+      numeroMasked: pago.tarjeta ? `****${pago.tarjeta.numero.slice(-4)}` : undefined
+    }));
+
+    return {
+      reserva: {
+        id: reserva.id,
+        codigo: reserva.id.substring(0, 8).toUpperCase(),
+        hospedaje: reserva.hospedaje.nombre,
+        fechaInicio: reserva.fechaInicio,
+        fechaFin: reserva.fechaFin,
+        fechaCheckin: reserva.updatedAt, // Fecha de última actualización
+        estado: reserva.estado,
+        observaciones: reserva.observacion
+      },
+      titular: {
+        nombre: reserva.turista.nombre,
+        apellido: reserva.turista.apellido,
+        dni: reserva.turista.dni?.toString() || '',
+        telefono: reserva.turista.telefono?.toString(),
+        email: reserva.turista.email
+      },
+      habitaciones: Array.from(habitacionesMap.values()),
+      pagos: pagosFormateados,
+      totalNoches,
+      totalHuespedes: reserva.huespedes.length
+    };
+  }
+
+  /**
+   * Confirma el checkout con cargos adicionales
+   * @param reservaId ID de la reserva
+   * @param dto Datos del checkout con cargos adicionales
+   * @param user Usuario que realiza el checkout
+   * @returns Resultado del checkout
+   */
+  async confirmarCheckout(reservaId: string, dto: ConfirmarCheckoutDto, user: any) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Verificar que la reserva existe y está en CHECK_IN
+      const reserva = await this.reservaRepository.findOne({
+        where: { id: reservaId },
+        relations: ['turista', 'hospedaje', 'pagos']
+      });
+
+      if (!reserva) {
+        throw new NotFoundException('Reserva no encontrada');
+      }
+
+      if (reserva.estado !== EstadoReserva.CHECK_IN) {
+        throw new BadRequestException('Solo se puede hacer checkout de reservas con check-in realizado');
+      }
+
+      // 2. Buscar tarjeta de check-in para reutilizar
+      const tarjetaCheckin = await this.tarjetaCheckinRepository.findOne({
+        where: { reserva: { id: reservaId } }
+      });
+
+      // 3. Procesar cargos adicionales si existen
+      if (dto.cargosAdicionales && dto.cargosAdicionales.length > 0) {
+        console.log(`💳 Procesando ${dto.cargosAdicionales.length} cargos adicionales para reserva ${reservaId}`);
+        
+        for (const cargo of dto.cargosAdicionales) {
+          if (cargo.monto > 0) { // Solo procesar cargos con monto > 0
+            // Crear pago adicional
+            await this.pagosService.createPago({
+              reservaId: reservaId,
+              metodo: MetodoPago.TARJETA,
+              montoReserva: cargo.monto,
+              montoImpuestos: 0,
+              montoTotal: cargo.monto,
+              // Reutilizar datos de tarjeta del check-in
+              tarjeta: tarjetaCheckin ? {
+                numero: tarjetaCheckin.numero,
+                titular: tarjetaCheckin.titular,
+                vencimiento: tarjetaCheckin.vencimiento,
+                cve: tarjetaCheckin.cve,
+                entidad: tarjetaCheckin.entidad,
+                tipo: tarjetaCheckin.tipo
+              } : undefined,
+              metadatos: {
+                concepto: cargo.concepto,
+                descripcion: cargo.descripcion,
+                esCargoAdicional: true
+              }
+            }, user.id);
+
+            console.log(`✅ Cargo adicional creado: ${cargo.concepto} - $${cargo.monto}`);
+          }
+        }
+      }
+
+      // 4. Ejecutar checkout estándar
+      const checkoutResult = await this.registrarCheckOut(reservaId, {
+        observaciones: dto.observaciones
+      });
+
+      await queryRunner.commitTransaction();
+
+      console.log(`✅ Checkout confirmado para reserva ${reservaId} con ${dto.cargosAdicionales?.length || 0} cargos adicionales`);
+
+      return {
+        success: true,
+        message: 'Checkout realizado exitosamente',
+        reservaId: reservaId,
+        codigo: reserva.id.substring(0, 8).toUpperCase(),
+        cargosAdicionales: dto.cargosAdicionales?.length || 0,
+        montoTotal: dto.cargosAdicionales?.reduce((sum, cargo) => sum + cargo.monto, 0) || 0
+      };
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error('❌ Error en checkout confirmado:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 }

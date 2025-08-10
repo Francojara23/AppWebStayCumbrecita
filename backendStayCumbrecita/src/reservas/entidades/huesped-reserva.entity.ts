@@ -1,12 +1,17 @@
 import { Entity, Column, ManyToOne, JoinColumn } from "typeorm";
 import { BaseEntityAudit } from "../../common/base.entity";
 import { Reserva } from "./reserva.entity";
+import { HabitacionEntity } from "../../habitaciones/entidades/habitacion.entity";
 
 @Entity("huespedes_reserva")
 export class HuespedReserva extends BaseEntityAudit {
   @ManyToOne(() => Reserva, (reserva) => reserva.huespedes)
   @JoinColumn({ name: "reserva_id" })
   reserva: Reserva;
+
+  @ManyToOne(() => HabitacionEntity, { nullable: true })
+  @JoinColumn({ name: "habitacion_id" })
+  habitacion?: HabitacionEntity;
 
   @Column({ length: 100 })
   nombre: string;

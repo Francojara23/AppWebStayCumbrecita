@@ -6,17 +6,10 @@ import * as crypto from 'crypto';
 import { ImagesService } from '../uploads/images/images.service';
 
 export interface QrReservaPayload {
+  // Datos mínimos para QR optimizado
   reservaId: string;
-  codigo: string;
-  hospedaje: string;
-  habitacion: string;
-  fechaInicio: string;
-  fechaFin: string;
-  huesped: string;
-  adultos: number;
-  ninos: number;
   timestamp: number;
-  signature: string;
+  signature?: string;
 }
 
 @Injectable()
@@ -30,54 +23,16 @@ export class QrCodeService {
   ) {}
 
   /**
-   * Genera un código QR para una reserva con firma digital
-   * @param reservaData Datos de la reserva
-   * @returns Buffer de la imagen PNG del QR
+   * Genera un código QR optimizado para una reserva con solo el ID
+   * @param reservaId ID único de la reserva
+   * @returns Buffer de la imagen PNG del QR y payload firmado
    */
-  async generarQrReserva(reservaData: {
-    reservaId: string;
-    codigo: string;
-    hospedaje: string;
-    habitacion: string;
-    fechaInicio: Date | string;
-    fechaFin: Date | string;
-    huesped: string;
-    adultos: number;
-    ninos: number;
-  }): Promise<{ qrBuffer: Buffer; qrCloudinaryUrl: string; signedPayload: QrReservaPayload }> {
+  async generarQrReserva(reservaId: string): Promise<{ qrBuffer: Buffer; qrCloudinaryUrl: string; signedPayload: QrReservaPayload }> {
     try {
-      // Función helper para formatear fechas de manera segura
-      const formatearFecha = (fecha: Date | string): string => {
-        if (typeof fecha === 'string') {
-          // Si ya es string, verificar que tenga el formato correcto
-          const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
-          if (fechaRegex.test(fecha)) {
-            return fecha;
-          } else {
-            // Si no tiene el formato correcto, intentar convertir a Date y formatear
-            return new Date(fecha).toISOString().split('T')[0];
-          }
-        } else if (fecha instanceof Date) {
-          // Si es Date, formatear normalmente
-          return fecha.toISOString().split('T')[0];
-        } else {
-          // Fallback: intentar convertir a Date
-          return new Date(fecha).toISOString().split('T')[0];
-        }
-      };
-
-      // Crear payload con datos de la reserva
+      // Crear payload mínimo y optimizado
       const payload: Omit<QrReservaPayload, 'signature'> = {
-        reservaId: reservaData.reservaId,
-        codigo: reservaData.codigo,
-        hospedaje: reservaData.hospedaje,
-        habitacion: reservaData.habitacion,
-        fechaInicio: formatearFecha(reservaData.fechaInicio), // YYYY-MM-DD
-        fechaFin: formatearFecha(reservaData.fechaFin), // YYYY-MM-DD
-        huesped: reservaData.huesped,
-        adultos: reservaData.adultos,
-        ninos: reservaData.ninos,
-        timestamp: Math.floor(Date.now() / 1000), // Timestamp actual
+        reservaId,
+        timestamp: Math.floor(Date.now() / 1000)
       };
 
       // Firmar el payload con JWT
@@ -94,22 +49,22 @@ export class QrCodeService {
       // Convertir a string JSON compacto
       const qrData = JSON.stringify(signedPayload);
 
-      // Generar QR como buffer PNG
+      // Generar QR como buffer PNG con configuración optimizada para lectura
       const qrBuffer = await QRCode.toBuffer(qrData, {
         type: 'png',
-        width: 300,
-        margin: 2,
+        width: 400,        // Aumentar tamaño para mejor lectura
+        margin: 1,         // Reducir margen para más espacio al código
         color: {
           dark: '#000000',
           light: '#FFFFFF',
         },
-        errorCorrectionLevel: 'M',
+        errorCorrectionLevel: 'H',  // Máximo nivel de corrección de errores
       });
 
       // Subir el QR a Cloudinary
       const qrFile = {
         fieldname: 'qr',
-        originalname: `qr-${reservaData.reservaId}.png`,
+        originalname: `qr-${reservaId}.png`,
         encoding: '7bit',
         mimetype: 'image/png',
         buffer: qrBuffer,
@@ -119,12 +74,13 @@ export class QrCodeService {
       const cloudinaryResult = await this.imagesService.uploadFile(qrFile, 'qr-codes');
       const qrCloudinaryUrl = cloudinaryResult.secure_url;
 
-      this.logger.log(`✅ QR generado y subido a Cloudinary para reserva ${reservaData.reservaId}`);
+      this.logger.log(`✅ QR optimizado generado y subido a Cloudinary para reserva ${reservaId}`);
+      this.logger.log(`📊 Tamaño del QR: ${qrData.length} caracteres (vs ~1500 antes)`);
 
       return { qrBuffer, qrCloudinaryUrl, signedPayload };
     } catch (error) {
-      this.logger.error(`❌ Error generando QR para reserva ${reservaData.reservaId}:`, error);
-      throw new Error('Error generando código QR');
+      this.logger.error(`❌ Error generando QR optimizado para reserva ${reservaId}:`, error);
+      throw new Error('Error generando código QR optimizado');
     }
   }
 
@@ -139,7 +95,7 @@ export class QrCodeService {
       const payload: QrReservaPayload = JSON.parse(qrData);
 
       // Verificar que tenga la estructura correcta
-      if (!payload.signature || !payload.reservaId || !payload.codigo) {
+      if (!payload.signature || !payload.reservaId) {
         this.logger.warn('⚠️ QR con estructura inválida');
         return null;
       }
@@ -169,7 +125,7 @@ export class QrCodeService {
           return null;
         }
 
-        this.logger.log(`✅ QR verificado para reserva ${payload.reservaId}`);
+        this.logger.log(`✅ QR optimizado verificado para reserva ${payload.reservaId}`);
         return payload;
 
       } catch (jwtError) {

@@ -120,6 +120,12 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
   const huespedes = Number(searchParams.get('huespedes')) || 2
   const cantidadHabitaciones = Number(searchParams.get('habitaciones')) || 1
 
+  // Estado local para reflejar inmediatamente el filtro de habitaciones aunque la URL tarde en rehidratar
+  const [roomsFilter, setRoomsFilter] = useState<number>(cantidadHabitaciones)
+  useEffect(() => {
+    setRoomsFilter(cantidadHabitaciones)
+  }, [cantidadHabitaciones])
+
   // Convertir fechas de string a Date si existen (evitando problemas de zona horaria)
   const initialCheckIn = fechaInicio ? new Date(fechaInicio + 'T12:00:00') : undefined
   const initialCheckOut = fechaFin ? new Date(fechaFin + 'T12:00:00') : undefined
@@ -330,6 +336,10 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
   // Estado para gestionar habitaciones seleccionadas como array individual
   const [selectedRoomsList, setSelectedRoomsList] = useState<any[]>([])
 
+  // Límite de habitaciones a seleccionar basado en query param
+  const maxRoomsAllowed = Math.max(1, roomsFilter)
+  const remainingRoomsAllowed = Math.max(0, maxRoomsAllowed - selectedRoomsList.length)
+
   // Función para agregar habitaciones (nueva lógica)
   const handleRoomSelection = (roomId: string) => {
     const room = hotelRooms.find((h: any) => h.id === roomId)
@@ -338,14 +348,20 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       
       // Verificar que hay suficientes habitaciones disponibles
       const habitacionesDisponibles = room.habitacionesIds || []
-      if (quantity > habitacionesDisponibles.length) {
-        alert(`Solo hay ${habitacionesDisponibles.length} habitaciones disponibles de este tipo. Solicitaste ${quantity}.`)
+      const maxByAvailability = habitacionesDisponibles.length
+      const maxByLimit = remainingRoomsAllowed
+      const allowedToAdd = Math.min(quantity, maxByAvailability, maxByLimit)
+      if (allowedToAdd <= 0) {
+        alert(`Ya alcanzaste el máximo de ${maxRoomsAllowed} habitaci${maxRoomsAllowed === 1 ? 'ón' : 'ones'} permitidas en esta búsqueda.`)
         return
+      }
+      if (quantity > allowedToAdd) {
+        alert(`Solo puedes agregar ${allowedToAdd} habitaci${allowedToAdd === 1 ? 'ón' : 'ones'} más para no superar el límite de ${maxRoomsAllowed}.`)
       }
       
       // Agregar múltiples habitaciones usando IDs únicos reales
       const newRooms: any[] = []
-      for (let i = 0; i < quantity; i++) {
+      for (let i = 0; i < allowedToAdd; i++) {
         const habitacionUnicaId = habitacionesDisponibles[i] // ID único real de cada habitación
         if (habitacionUnicaId) {
           const uniqueId = `${habitacionUnicaId}_${Date.now()}_${i}` // ID único para gestión individual
@@ -420,6 +436,19 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
     })
     
     // Actualizar la URL sin recargar la página
+    router.replace(newUrl)
+  }
+
+  // Callback para cambios de huéspedes/habitaciones sin fechas
+  const handleGuestsRoomsChange = (guests: number, rooms: number) => {
+    // Reflejar inmediatamente en estado local para que el listado reaccione sin esperar al router
+    setRoomsFilter(rooms)
+    const params = new URLSearchParams()
+    if (fechaInicio) params.set('fechaInicio', fechaInicio)
+    if (fechaFin) params.set('fechaFin', fechaFin)
+    params.set('huespedes', String(guests))
+    params.set('habitaciones', String(rooms))
+    const newUrl = `/hospedaje/${id}?${params.toString()}`
     router.replace(newUrl)
   }
 
@@ -507,19 +536,24 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       capacidad: habitacionGrupo.capacidad
     });
 
-    // Verificar disponibilidad
-    const isAvailable = habitacionGrupo.cantidadDisponible > 0;
+    // Verificar disponibilidad por fechas
+    const isAvailableByDates = habitacionGrupo.cantidadDisponible > 0;
     
-    // NOTA: Removido filtro de capacidad individual para permitir selección múltiple
-    // La validación de capacidad total se hará en el BookingForm
+    // Reglas de capacidad según cantidad de habitaciones solicitadas
+    const meetsSingleRoomCapacity = habitacionGrupo.capacidad >= huespedes;
+    const isSingleRoomMode = maxRoomsAllowed === 1;
     
-    // Determinar el motivo de no disponibilidad (solo por fechas)
+    // Motivo de no disponibilidad
     let unavailableReason = null;
-    if (!isAvailable) {
-      unavailableReason = 'dates';
+    if (!isAvailableByDates) {
+      unavailableReason = 'dates'
+    }
+    if (isSingleRoomMode && !meetsSingleRoomCapacity) {
+      unavailableReason = unavailableReason ? 'dates_and_capacity' : 'capacity'
     }
     
-    const finalAvailability = isAvailable; // Solo verificar disponibilidad por fechas
+    // Disponibilidad final: si es modo 1 habitación, también exigir capacidad suficiente
+    const finalAvailability = isSingleRoomMode ? (isAvailableByDates && meetsSingleRoomCapacity) : isAvailableByDates;
     
     // Calcular precio con ajustes si hay fechas seleccionadas
     let finalPrice = habitacionGrupo.precioBase;
@@ -591,7 +625,9 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       })),
       images: habitacionGrupo.imagenes?.sort((a: any, b: any) => (a.orden || 999) - (b.orden || 999))?.map((img: any) => img.url) || ["/mountain-cabin-retreat.png"]
     }
-  }) || []
+  })
+  // Filtrar listado en modo 1 habitación: mostrar solo las que cumplen capacidad
+  ?.filter((room: any) => (maxRoomsAllowed === 1 ? room.capacity >= huespedes : true)) || []
 
   // Procesar opiniones para el formato esperado
   const hotelReviews = opiniones?.map(opinion => ({
@@ -669,6 +705,8 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
               selectedRoomIds={selectedRoomsList.map(room => room.originalRoomId || room.id)}
               isLoadingDisponibilidad={isLoadingDisponibilidad}
               requiredGuests={huespedes}
+              remainingRoomsAllowed={remainingRoomsAllowed}
+              maxRoomsAllowed={maxRoomsAllowed}
             />
           </div>
 
@@ -679,10 +717,11 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
               priceAdjustments={priceAdjustments}
               onReservation={handleReservation}
               onDatesChange={handleDatesChange}
+              onGuestsRoomsChange={handleGuestsRoomsChange}
               initialCheckIn={initialCheckIn}
               initialCheckOut={initialCheckOut}
               initialGuests={huespedes}
-              initialRooms={cantidadHabitaciones}
+              initialRooms={roomsFilter}
               selectedRooms={selectedRoomsForBooking}
               onRemoveRoom={handleRemoveRoom}
               onClearAllRooms={handleClearAllRooms}

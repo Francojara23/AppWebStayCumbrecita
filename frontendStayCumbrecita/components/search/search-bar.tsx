@@ -74,6 +74,16 @@ export default function SearchBar({
     })
   }
 
+  // Actualizar URL en tiempo real al cambiar huéspedes/habitaciones (sin requerir fechas)
+  const pushFiltersToUrl = (newGuests: number, newRooms: number) => {
+    const params = new URLSearchParams()
+    if (checkInDate) params.set('fechaInicio', checkInDate.toISOString().split('T')[0])
+    if (checkOutDate) params.set('fechaFin', checkOutDate.toISOString().split('T')[0])
+    params.set('huespedes', String(newGuests))
+    params.set('habitaciones', String(newRooms))
+    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
+  }
+
   return (
     <section>
       <div>
@@ -145,7 +155,11 @@ export default function SearchBar({
 
             <div>
               <label className="block text-sm font-medium text-white mb-1">Huéspedes</label>
-              <Select value={guests.toString()} onValueChange={(value) => setGuests(Number(value))}>
+              <Select value={guests.toString()} onValueChange={(value) => {
+                const v = Number(value)
+                setGuests(v)
+                pushFiltersToUrl(v, rooms)
+              }}>
                 <SelectTrigger className="bg-[#DD7C32] border border-white/30 text-white">
                   <SelectValue>
                     {guests} {guests === 1 ? "huésped" : "huéspedes"}
@@ -163,7 +177,11 @@ export default function SearchBar({
 
             <div>
               <label className="block text-sm font-medium text-white mb-1">Habitaciones</label>
-              <Select value={rooms.toString()} onValueChange={(value) => setRooms(Number(value))}>
+              <Select value={rooms.toString()} onValueChange={(value) => {
+                const v = Number(value)
+                setRooms(v)
+                pushFiltersToUrl(guests, v)
+              }}>
                 <SelectTrigger className="bg-[#DD7C32] border border-white/30 text-white">
                   <SelectValue>
                     {rooms} {rooms === 1 ? "habitación" : "habitaciones"}
@@ -180,24 +198,7 @@ export default function SearchBar({
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-between items-center">
-            <div className="flex space-x-2 mb-2 md:mb-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-transparent border-white/30 text-white hover:bg-white/10"
-              >
-                <SlidersHorizontal className="h-4 w-4 mr-2" /> Filtros
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-transparent border-white/30 text-white hover:bg-white/10"
-              >
-                <CalendarDays className="h-4 w-4 mr-2" /> Fechas flexibles
-              </Button>
-
-            </div>
+          <div className="flex flex-wrap justify-end items-center">
             <Button className="bg-white text-[#CD6C22] hover:bg-gray-100 px-8" onClick={handleSearch}>
               <Search className="h-4 w-4 mr-2" /> Buscar
             </Button>

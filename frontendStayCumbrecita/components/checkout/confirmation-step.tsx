@@ -6,7 +6,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { CheckCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
-import QRCode from "react-qr-code"
+
 
 export default function ConfirmationStep() {
   const router = useRouter()
@@ -16,23 +16,7 @@ export default function ConfirmationStep() {
     router.push("/tourist")
   }
 
-  const getQrData = (format = 0) => {
-    // Format 0: JSON string with reservation details
-    if (format === 0) {
-      return JSON.stringify({
-        code: confirmationCode,
-        hotel: reservation.hotel.name,
-        room: reservation.room.name,
-        checkIn: reservation.dates.checkIn.toISOString(),
-        checkOut: reservation.dates.checkOut.toISOString(),
-        guest: personalInfo ? `${personalInfo.firstName} ${personalInfo.lastName}` : "",
-        adults: reservation.guests.adults,
-        children: reservation.guests.children,
-      })
-    }
-    // Format 1: Simple URL format
-    return `https://capturecita.com/check-in/${confirmationCode}`
-  }
+  // Función eliminada - ahora solo usamos el QR del backend
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -98,7 +82,12 @@ export default function ConfirmationStep() {
                     className="w-[180px] h-[180px]"
                   />
                 ) : (
-                  <QRCode value={getQrData(0)} size={180} />
+                  <div className="w-[180px] h-[180px] bg-gray-200 flex items-center justify-center rounded">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-2"></div>
+                      <p className="text-gray-500 text-sm">Generando QR...</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

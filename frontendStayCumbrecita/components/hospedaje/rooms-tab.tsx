@@ -15,9 +15,11 @@ interface RoomsTabProps {
   selectedRoomIds: string[]
   isLoadingDisponibilidad?: boolean
   requiredGuests?: number
+  remainingRoomsAllowed?: number
+  maxRoomsAllowed?: number
 }
 
-export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, handleRoomReservation, handleRoomSelection, selectedRoomIds, isLoadingDisponibilidad, requiredGuests }: RoomsTabProps) {
+export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, handleRoomReservation, handleRoomSelection, selectedRoomIds, isLoadingDisponibilidad, requiredGuests, remainingRoomsAllowed = 0, maxRoomsAllowed = 1 }: RoomsTabProps) {
   const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -41,6 +43,8 @@ export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, han
       [roomId]: quantity,
     })
   }
+
+  const canAddMoreRooms = remainingRoomsAllowed > 0
 
   return (
     <div className="space-y-6">
@@ -143,12 +147,14 @@ export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, han
                       className="px-3 py-1 border-l hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => {
                         const currentQty = roomQuantities[room.id] || 1
-                        const maxQuantity = room.esGrupo ? (room.cantidadDisponible || 0) : room.available;
+                        const maxByAvailability = room.esGrupo ? (room.cantidadDisponible || 0) : room.available;
+                        const maxByLimit = (roomQuantities[room.id] || 1) + remainingRoomsAllowed
+                        const maxQuantity = Math.min(maxByAvailability, maxByLimit)
                         if (currentQty < maxQuantity) {
                           updateQuantity(room.id, currentQty + 1)
                         }
                       }}
-                      disabled={(roomQuantities[room.id] || 1) >= (room.esGrupo ? (room.cantidadDisponible || 0) : room.available) || room.isAvailable === false}
+                      disabled={(roomQuantities[room.id] || 1) >= (room.esGrupo ? (room.cantidadDisponible || 0) : room.available) || (roomQuantities[room.id] || 1) >= ((roomQuantities[room.id] || 1) + remainingRoomsAllowed) || room.isAvailable === false}
                     >
                       +
                     </button>
@@ -165,12 +171,12 @@ export default function RoomsTab({ rooms, roomQuantities, setRoomQuantities, han
                   <Button className="bg-white text-[#CD6C22] hover:bg-gray-100" onClick={() => openRoomDetails(room)}>
                     Ver detalles
                   </Button>
-                  {room.isAvailable === false ? (
+                  {(room.isAvailable === false || !canAddMoreRooms) ? (
                     <Button 
                       disabled
                       className="bg-gray-400 text-white cursor-not-allowed opacity-50"
                     >
-                      No disponible
+                      {room.isAvailable === false ? 'No disponible' : `Máximo ${maxRoomsAllowed} hab.`}
                     </Button>
                   ) : (
                     <Button 

@@ -9,26 +9,7 @@ export class LineaReservaDto {
   personas: number;
 }
 
-export class AcompanianteDto {
-  @IsString()
-  nombre: string;
 
-  @IsString()
-  apellido: string;
-
-  @IsString()
-  @IsOptional()
-  documento?: string;
-
-  @IsDate()
-  @Type(() => Date)
-  @IsOptional()
-  fechaNacimiento?: Date;
-
-  @IsString()
-  @IsOptional()
-  nacionalidad?: string;
-}
 
 export class CrearReservaDto {
   @IsUUID()
@@ -47,10 +28,7 @@ export class CrearReservaDto {
   @ArrayMinSize(1)
   lineas: LineaReservaDto[];
 
-  @ValidateNested({ each: true })
-  @Type(() => AcompanianteDto)
-  @IsOptional()
-  acompaniantes?: AcompanianteDto[];
+
 
   @IsString()
   @IsOptional()

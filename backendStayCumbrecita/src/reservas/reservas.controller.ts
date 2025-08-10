@@ -7,11 +7,14 @@ import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from 'src/common/enums/role.enum';
 import { CotizarReservaDto } from './dto/cotizar-reserva.dto';
-import { CheckinDto } from './dto/checkin.dto';
+import { CheckinCompletoDto } from "./dto/checkin/checkin-completo.dto";
+import { DatosCheckinResponseDto } from "./dto/checkin/datos-checkin-response.dto";
 import { CheckoutDto } from './dto/checkout.dto';
 import { ApproveTransferDto } from './dto/approve-transfer.dto';
 import { VerificarQrDto } from './dto/checkin/verificar-qr.dto';
 import { RealizarCheckinDto } from './dto/checkin/realizar-checkin.dto';
+import { ConfirmarCheckoutDto } from './dto/checkout/confirmar-checkout.dto';
+import { DatosCheckoutResponseDto } from './dto/checkout/datos-checkout-response.dto';
 import { RolesGuard } from 'src/auth/jwt/jwt-roles.guard';
 
 /**
@@ -78,6 +81,20 @@ export class ReservasController {
   }
 
   /**
+   * Obtiene la lista de check-ins realizados
+   * Requiere rol de ADMIN, PROPIETARIO, EMPLEADO, CONSERGE o RECEPCIONISTA
+   * @param req Request con información del usuario que hace la petición
+   * @returns Lista de check-ins realizados
+   */
+  @Get('checkins-realizados')
+  @Roles(Role.ADMIN, Role.PROPIETARIO, 'EMPLEADO', 'CONSERGE', 'RECEPCIONISTA')
+  @ApiOperation({ summary: 'Obtener lista de check-ins realizados' })
+  @ApiResponse({ status: 200, description: 'Lista de check-ins obtenida exitosamente' })
+  async getCheckinsRealizados(@Request() req) {
+    return this.reservasService.getCheckinsRealizados(req.user);
+  }
+
+  /**
    * Obtiene una reserva específica por su ID
    * Requiere rol de ADMIN, PROPIETARIO o TURISTA
    * @param id ID de la reserva a buscar
@@ -112,13 +129,8 @@ export class ReservasController {
     return this.reservasService.cotizar(dto);
   }
 
-  @Patch(':id/checkin')
-  @Roles('ADMIN', 'PROPIETARIO')
-  @ApiOperation({ summary: 'Registrar check-in de una reserva' })
-  @ApiResponse({ status: 200, description: 'Check-in registrado exitosamente' })
-  async checkin(@Param('id') id: string, @Body() dto: CheckinDto) {
-    return this.reservasService.registrarCheckIn(id, dto);
-  }
+  // MÉTODO ELIMINADO: checkin (usaba CheckinDto y registrarCheckIn obsoletos)
+  // Ahora se usa: POST /checkin-completo y GET /:id/datos-checkin
 
   @Patch(':id/checkout')
   @Roles('ADMIN', 'PROPIETARIO')
@@ -126,6 +138,26 @@ export class ReservasController {
   @ApiResponse({ status: 200, description: 'Check-out registrado exitosamente' })
   async checkout(@Param('id') id: string, @Body() dto: CheckoutDto) {
     return this.reservasService.registrarCheckOut(id, dto);
+  }
+
+  @Get(':id/datos-checkout')
+  @Roles('ADMIN', 'PROPIETARIO', 'EMPLEADO')
+  @ApiOperation({ summary: 'Obtener datos completos de reserva para checkout' })
+  @ApiResponse({ status: 200, description: 'Datos obtenidos exitosamente', type: DatosCheckoutResponseDto })
+  async getDatosCheckout(@Param('id') id: string): Promise<DatosCheckoutResponseDto> {
+    return this.reservasService.getDatosCheckout(id);
+  }
+
+  @Post(':id/confirmar-checkout')
+  @Roles('ADMIN', 'PROPIETARIO', 'EMPLEADO')
+  @ApiOperation({ summary: 'Confirmar checkout con cargos adicionales' })
+  @ApiResponse({ status: 200, description: 'Checkout confirmado exitosamente' })
+  async confirmarCheckout(
+    @Param('id') id: string, 
+    @Body() dto: ConfirmarCheckoutDto,
+    @Request() req: any
+  ) {
+    return this.reservasService.confirmarCheckout(id, dto, req.user);
   }
 
   @Patch(':id/pago-transferencia')
@@ -217,6 +249,39 @@ export class ReservasController {
   @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
   async realizarCheckin(@Body() dto: RealizarCheckinDto) {
     return this.reservasService.realizarCheckin(dto);
+  }
+
+  /**
+   * Obtiene los datos necesarios para el check-in de una reserva
+   * Requiere rol de ADMIN, PROPIETARIO, EMPLEADO, CONSERGE o RECEPCIONISTA
+   * @param reservaId ID de la reserva
+   * @returns Datos formateados para el wizard de check-in
+   */
+  @Get(':id/datos-checkin')
+  @Roles(Role.ADMIN, Role.PROPIETARIO, 'EMPLEADO', 'CONSERGE', 'RECEPCIONISTA')
+  @ApiOperation({ summary: 'Obtener datos para el proceso de check-in' })
+  @ApiResponse({ status: 200, description: 'Datos de check-in obtenidos exitosamente', type: DatosCheckinResponseDto })
+  @ApiResponse({ status: 400, description: 'Reserva no válida para check-in' })
+  @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
+  async getDatosCheckin(@Param('id') reservaId: string): Promise<DatosCheckinResponseDto> {
+    return this.reservasService.getDatosCheckin(reservaId);
+  }
+
+  /**
+   * Realiza el check-in completo de una reserva con wizard de 3 pasos
+   * Requiere rol de ADMIN, PROPIETARIO, EMPLEADO, CONSERGE o RECEPCIONISTA
+   * @param dto Datos completos del check-in (QR + huéspedes + pago)
+   * @param req Request con información del usuario que realiza el check-in
+   * @returns Confirmación de check-in exitoso
+   */
+  @Post('checkin-completo')
+  @Roles(Role.ADMIN, Role.PROPIETARIO, 'EMPLEADO', 'CONSERGE', 'RECEPCIONISTA')
+  @ApiOperation({ summary: 'Realizar check-in completo con wizard de 3 pasos' })
+  @ApiResponse({ status: 200, description: 'Check-in realizado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Error en los datos del check-in' })
+  @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
+  async realizarCheckinCompleto(@Body() dto: CheckinCompletoDto, @Request() req) {
+    return this.reservasService.realizarCheckinCompleto(dto, req.user);
   }
 
 }

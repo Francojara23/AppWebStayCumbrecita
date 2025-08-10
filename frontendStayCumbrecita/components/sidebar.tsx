@@ -20,6 +20,7 @@ import {
   CreditCard,
   Pencil,
   Bell,
+  QrCode,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -538,6 +539,15 @@ export default function Sidebar() {
                   label="Reservas"
                   active={isActive("/reservas")}
                   href="/adminABM/reservas"
+                  indent
+                  isCollapsed={isCollapsed}
+                />
+                {/* Check-in - Para empleados de recepción */}
+                <NavItem
+                  icon={<QrCode className="h-5 w-5" />}
+                  label="Check-in"
+                  active={isActive("/checkin")}
+                  href="/adminABM/checkin"
                   indent
                   isCollapsed={isCollapsed}
                 />

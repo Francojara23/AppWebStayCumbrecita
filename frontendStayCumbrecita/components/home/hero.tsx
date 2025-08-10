@@ -8,7 +8,7 @@ export default function Hero() {
   const router = useRouter()
 
   const handleExploreClick = () => {
-    router.push("/search")
+    router.push("/search?huespedes=2&habitaciones=1")
   }
 
   return (

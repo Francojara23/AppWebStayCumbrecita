@@ -350,8 +350,12 @@ export default function SearchPage() {
     selectedRoomServices
   )
 
-  // Hook para filtrar por capacidad de huéspedes
-  const useHospedajesPorCapacidad = (hospedajeIds: string[], huespedesRequeridos: number) => {
+  // Hook para filtrar por capacidad de huéspedes, considerando cantidad de habitaciones
+  const useHospedajesPorCapacidad = (
+    hospedajeIds: string[], 
+    huespedesRequeridos: number,
+    habitacionesMaximas: number
+  ) => {
     const [hospedajesValidos, setHospedajesValidos] = useState<string[]>([])
     const [isLoading, setIsLoading] = useState(false)
 
@@ -381,14 +385,21 @@ export default function SearchPage() {
               const habitacionesData = await responseHabitaciones.json()
               const habitaciones = habitacionesData.data || []
 
-              // Verificar si alguna habitación individual puede alojar a todos los huéspedes
               let hospedajeCumple = false
 
-              for (const habitacion of habitaciones) {
-                if (habitacion.capacidad >= huespedesRequeridos) {
-                  hospedajeCumple = true
-                  break // Ya encontramos una habitación que cumple
-                }
+              if (habitacionesMaximas <= 1) {
+                // Modo 1 habitación: una sola debe cubrir a todos los huéspedes
+                hospedajeCumple = habitaciones.some((h: any) => (h.capacidad || h.capacity || 0) >= huespedesRequeridos)
+              } else {
+                // Modo multi-habitación: sumar capacidades de hasta 'habitacionesMaximas'
+                const capacidades = habitaciones
+                  .map((h: any) => Number(h.capacidad || h.capacity || 0))
+                  .filter((c: number) => c > 0)
+                  .sort((a: number, b: number) => b - a)
+
+                const seleccionadas = capacidades.slice(0, Math.max(1, habitacionesMaximas))
+                const suma = seleccionadas.reduce((acc: number, c: number) => acc + c, 0)
+                hospedajeCumple = suma >= huespedesRequeridos
               }
 
               if (hospedajeCumple) {
@@ -411,7 +422,7 @@ export default function SearchPage() {
       }
 
       filtrarPorCapacidad()
-    }, [JSON.stringify(hospedajeIds), huespedesRequeridos])
+    }, [JSON.stringify(hospedajeIds), huespedesRequeridos, habitacionesMaximas])
 
     return { data: hospedajesValidos, isLoading }
   }
@@ -419,7 +430,8 @@ export default function SearchPage() {
   // Usar el hook de capacidad
   const { data: hospedajesPorCapacidad, isLoading: isLoadingCapacidad } = useHospedajesPorCapacidad(
     hospedajeIds,
-    guests
+    guests,
+    rooms
   )
 
   // Hook para filtrar por disponibilidad de fechas y obtener precios calculados
