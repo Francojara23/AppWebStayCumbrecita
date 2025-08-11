@@ -735,6 +735,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
         <ChatButton
           hospedajeId={hospedaje.id}
           hospedajeName={hospedaje.nombre}
+          chatbotActivo={hospedaje.chatbot_activo}
           variant="default"
           className="bg-[#CD6C22] hover:bg-[#A83921] text-white rounded-full px-6 py-3 shadow-lg"
         />

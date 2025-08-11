@@ -10,6 +10,7 @@ import { TipoHospedaje } from "./entidades/tipo-hospedaje.entity";
 
 import { Empleado } from "src/empleados/entidades/empleado.entity";
 import { HabitacionEntity } from "src/habitaciones/entidades/habitacion.entity";
+import { ChatbotDocument } from "../chatbot/entidades/chatbot-document.entity";
 import { ImagesModule } from "../uploads/images/images.module";
 import { DocumentsModule } from "../uploads/documents/documents.module";
 import { EmpleadosModule } from "../empleados/empleados.module";
@@ -25,6 +26,7 @@ import { PublicidadModule } from "../publicidad/publicidad.module";
       TipoHospedaje,
       Empleado,
       HabitacionEntity,
+      ChatbotDocument,
     ]),
     ImagesModule,
     DocumentsModule,

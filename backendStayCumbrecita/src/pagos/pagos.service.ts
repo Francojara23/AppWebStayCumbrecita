@@ -41,9 +41,10 @@ export class PagosService {
   private readonly TRANSICIONES_VALIDAS: Record<EstadoPago, EstadoPago[]> = {
     [EstadoPago.PENDIENTE]: [EstadoPago.PROCESANDO, EstadoPago.CANCELADO, EstadoPago.EXPIRADO],
     [EstadoPago.PROCESANDO]: [EstadoPago.APROBADO, EstadoPago.RECHAZADO, EstadoPago.FALLIDO],
-    [EstadoPago.APROBADO]: [EstadoPago.CANCELADO], // Solo si la reserva no ha comenzado
+    [EstadoPago.APROBADO]: [EstadoPago.CANCELADO, EstadoPago.REINTEGRADO], // Puede ser cancelado o reintegrado
     [EstadoPago.RECHAZADO]: [EstadoPago.PENDIENTE], // Solo para retry manual
     [EstadoPago.CANCELADO]: [], // Estado final
+    [EstadoPago.REINTEGRADO]: [], // Estado final - dinero ya reintegrado
     [EstadoPago.EXPIRADO]: [EstadoPago.PENDIENTE], // Solo para retry manual
     [EstadoPago.FALLIDO]: [EstadoPago.PENDIENTE] // Solo para retry
   };

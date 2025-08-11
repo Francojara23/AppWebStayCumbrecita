@@ -18,7 +18,7 @@ export default function Footer() {
                 className="h-12 w-auto mb-4"
               />
             </Link>
-            <h3 className="text-xl font-bold mb-4">Hoteles La Cumbrecita</h3>
+            <h3 className="text-xl font-bold mb-4">Stay At Cumbrecita</h3>
             <p className="text-gray-400 mb-4">
               Tu portal para encontrar los mejores alojamientos en La Cumbrecita, Córdoba.
             </p>
@@ -97,7 +97,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center">
                 <Mail className="h-5 w-5 mr-2 text-gray-400" />
-                <span>info@hoteleslacumbrecita.com</span>
+                <span>info@stayatcumbrecita.com</span>
               </li>
               <li className="flex items-start">
                 <MapPin className="h-5 w-5 mr-2 text-gray-400 mt-1" />
@@ -108,7 +108,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 text-sm">
-          <p>© {new Date().getFullYear()} Hoteles La Cumbrecita. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} Stay At Cumbrecita. Todos los derechos reservados.</p>
         </div>
       </div>
     </footer>

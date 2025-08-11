@@ -16,6 +16,7 @@ import { ImagenHospedaje } from "./entidades/imagen-hospedaje.entity";
 import { DocumentoHospedaje } from "./entidades/documento-hospedaje.entity";
 import { TipoHospedaje } from "./entidades/tipo-hospedaje.entity";
 import { HospedajeServicio } from "../servicios/entidades/hospedaje-servicio.entity";
+import { ChatbotDocument } from "../chatbot/entidades/chatbot-document.entity";
 import { CreateHospedajeDTO } from "./dto/create-hospedaje.dto";
 import { UpdateHospedajeDTO } from "./dto/update-hospedaje.dto";
 import { FindHospedajesDTO } from "./dto/find-hospedajes.dto";
@@ -42,6 +43,8 @@ export class HospedajesService {
     private tiposHospedajeRepository: Repository<TipoHospedaje>,
     @InjectRepository(HospedajeServicio)
     private serviciosHospedajeRepository: Repository<HospedajeServicio>,
+    @InjectRepository(ChatbotDocument)
+    private chatbotDocumentRepository: Repository<ChatbotDocument>,
     private imagesService: ImagesService,
     private documentsService: DocumentsService,
     private empleadosService: EmpleadosService,
@@ -65,6 +68,29 @@ export class HospedajesService {
       return new Set(publicidadesActivas.map(p => p.hospedaje.id));
     } catch (error) {
       console.error('Error obteniendo hospedajes con publicidad activa:', error);
+      // En caso de error, devolver conjunto vacío para que no rompa la funcionalidad
+      return new Set();
+    }
+  }
+
+  /**
+   * Obtiene los IDs de hospedajes que tienen chatbot activo
+   * @returns Set de IDs de hospedajes con chatbot configurado y activo
+   */
+  private async getHospedajesConChatbotActivo(): Promise<Set<string>> {
+    try {
+      const chatbotsActivos = await this.chatbotDocumentRepository.find({
+        where: { 
+          isActive: true,
+          isTrained: true // Solo considerar chatbots que están entrenados
+        },
+        select: ['hospedajeId']
+      });
+      
+      // Extraer IDs de hospedajes únicos
+      return new Set(chatbotsActivos.map(c => c.hospedajeId));
+    } catch (error) {
+      console.error('Error obteniendo hospedajes con chatbot activo:', error);
       // En caso de error, devolver conjunto vacío para que no rompa la funcionalidad
       return new Set();
     }
@@ -368,6 +394,9 @@ export class HospedajesService {
 
     // Obtener hospedajes con publicidad activa para mapear campo featured
     const hospedajesConPublicidad = await this.getHospedajesConPublicidadActiva();
+    
+    // Obtener hospedajes con chatbot activo para mapear campo chatbot_activo
+    const hospedajesConChatbotActivo = await this.getHospedajesConChatbotActivo();
 
     const queryBuilder = this.hospedajesRepository
       .createQueryBuilder("hospedaje")
@@ -410,20 +439,23 @@ export class HospedajesService {
       hospedajes: hospedajes.map(h => ({ nombre: h.nombre, estado: h.estado }))
     });
 
-    // Mapear hospedajes agregando el campo featured basado en publicidad activa
-    const hospedajesConFeatured = hospedajes.map(hospedaje => ({
+    // Mapear hospedajes agregando los campos featured y chatbot_activo
+    const hospedajesConCamposAdicionales = hospedajes.map(hospedaje => ({
       ...hospedaje,
-      featured: hospedajesConPublicidad.has(hospedaje.id)
+      featured: hospedajesConPublicidad.has(hospedaje.id),
+      chatbot_activo: hospedajesConChatbotActivo.has(hospedaje.id)
     }));
 
-    console.log('✨ Hospedajes con campo featured:', {
-      total: hospedajesConFeatured.length,
-      conPublicidad: hospedajesConFeatured.filter(h => h.featured).length,
-      sinPublicidad: hospedajesConFeatured.filter(h => !h.featured).length
+    console.log('✨ Hospedajes con campos adicionales:', {
+      total: hospedajesConCamposAdicionales.length,
+      conPublicidad: hospedajesConCamposAdicionales.filter(h => h.featured).length,
+      sinPublicidad: hospedajesConCamposAdicionales.filter(h => !h.featured).length,
+      conChatbotActivo: hospedajesConCamposAdicionales.filter(h => h.chatbot_activo).length,
+      sinChatbotActivo: hospedajesConCamposAdicionales.filter(h => !h.chatbot_activo).length
     });
 
     return {
-      data: hospedajesConFeatured,
+      data: hospedajesConCamposAdicionales,
       meta: {
         total,
         page,
@@ -438,7 +470,7 @@ export class HospedajesService {
    * @param id ID del hospedaje a buscar
    * @returns Hospedaje encontrado con sus relaciones
    */
-  async findOne(id: string): Promise<Hospedaje> {
+  async findOne(id: string): Promise<any> {
     const hospedaje = await this.hospedajesRepository.findOne({
       where: { id },
       relations: [
@@ -456,7 +488,15 @@ export class HospedajesService {
       throw new NotFoundException("Hospedaje no encontrado");
     }
 
-    return hospedaje;
+    // Verificar si tiene chatbot activo
+    const hospedajesConChatbotActivo = await this.getHospedajesConChatbotActivo();
+    const hospedajesConPublicidad = await this.getHospedajesConPublicidadActiva();
+
+    return {
+      ...hospedaje,
+      featured: hospedajesConPublicidad.has(hospedaje.id),
+      chatbot_activo: hospedajesConChatbotActivo.has(hospedaje.id)
+    };
   }
 
   /**

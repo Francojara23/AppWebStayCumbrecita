@@ -24,9 +24,16 @@ export function useUserPermissions(): UserPermissions {
     error: null
   })
 
+  console.log('🚀 useUserPermissions INIT:', { user, userLoading, permissions })
+
   useEffect(() => {
+    console.log('🔄 useUserPermissions useEffect EJECUTADO:', { user, userLoading })
+    
     const checkPermissions = async () => {
+      console.log('⚡ checkPermissions LLAMADO:', { userLoading, user: !!user })
+      
       if (userLoading || !user) {
+        console.log('⏳ ESPERANDO usuario o cargando...', { userLoading, hasUser: !!user })
         setPermissions(prev => ({ ...prev, isLoading: userLoading }))
         return
       }
@@ -34,15 +41,26 @@ export function useUserPermissions(): UserPermissions {
       try {
         setPermissions(prev => ({ ...prev, isLoading: true, error: null }))
 
+        console.log('🔍 DEBUG: Iniciando verificación de permisos para usuario:', {
+          userId: user.id,
+          userOriginalRole: user.originalRole,
+          userRole: user.role
+        })
+
         // 1. Verificar hospedajes donde es propietario
+        console.log('🏨 DEBUG: Llamando a /hospedajes/mis-propiedades...')
         const hospedajesResponse = await api.get('/hospedajes/mis-propiedades')
+        console.log('🏨 DEBUG: Respuesta de mis-propiedades:', hospedajesResponse)
         const ownedHospedajes = hospedajesResponse.data?.data || []
         const ownedIds = ownedHospedajes.map((h: any) => h.id)
+        console.log('🏨 DEBUG: Hospedajes propios encontrados:', { ownedHospedajes, ownedIds })
 
         // 2. Verificar hospedajes donde es empleado ADMIN
         let adminHospedajes: string[] = []
         try {
+          console.log('👨‍💼 DEBUG: Llamando a /empleados/mis-empleos...')
           const empleadosResponse = await api.get('/empleados/mis-empleos')
+          console.log('👨‍💼 DEBUG: Respuesta de mis-empleos:', empleadosResponse)
           const empleos = empleadosResponse.data || []
           
           // Filtrar solo empleos con rol ADMIN
@@ -50,9 +68,10 @@ export function useUserPermissions(): UserPermissions {
             .filter((empleo: any) => empleo.rol?.nombre === 'ADMIN')
             .map((empleo: any) => empleo.hospedaje?.id)
             .filter(Boolean)
+          console.log('👨‍💼 DEBUG: Empleos admin encontrados:', { empleos, adminHospedajes })
         } catch (empleadosError) {
           // Si falla la consulta de empleados, continuar sin error
-          console.log('No se pudieron obtener empleos:', empleadosError)
+          console.log('❌ No se pudieron obtener empleos:', empleadosError)
         }
 
         // ✅ CORREGIDO: Se puede ser owner de DOS formas:
@@ -75,13 +94,21 @@ export function useUserPermissions(): UserPermissions {
         console.log('🔐 Permisos del usuario:', {
           userId: user.id,
           userRole: user.originalRole,
+          userFirstName: user.firstName,
+          userLastName: user.lastName,
           isOwner,
           isOwnerByRole: user.originalRole === 'PROPIETARIO',
           isOwnerByProperties: ownedIds.length > 0,
           isAdmin,
           hasAdminAccess,
           ownedHospedajes: ownedIds.length,
-          adminHospedajes: adminHospedajes.length
+          adminHospedajes: adminHospedajes.length,
+          // 🐛 DEBUG EXTRA:
+          userCompleto: user,
+          ownedHospedajesData: ownedHospedajes,
+          adminHospedajesData: adminHospedajes,
+          hospedajesResponseStatus: hospedajesResponse.status,
+          hospedajesResponseData: hospedajesResponse.data
         })
 
       } catch (error) {

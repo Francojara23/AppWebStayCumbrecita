@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { ReservasService } from './reservas.service';
 import { CrearReservaDto } from './dto/crear-reserva.dto';
 import { ActualizarEstadoReservaDto } from './dto/actualizar-estado-reserva.dto';
+import { CancelarReservaDto } from './dto/cancelar-reserva.dto';
 import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from 'src/common/enums/role.enum';
@@ -120,6 +121,28 @@ export class ReservasController {
     @Body() actualizarEstadoDto: ActualizarEstadoReservaDto,
   ) {
     return this.reservasService.actualizarEstado(id, actualizarEstadoDto);
+  }
+
+  /**
+   * Cancela una reserva (solo administradores)
+   * Requiere rol de ADMIN, PROPIETARIO o EMPLEADO
+   * @param id ID de la reserva a cancelar
+   * @param cancelarReservaDto Datos de la cancelación
+   * @param req Request object para obtener el usuario
+   * @returns Reserva cancelada
+   */
+  @Post(':id/cancelar')
+  @Roles(Role.ADMIN, Role.PROPIETARIO, Role.EMPLEADO)
+  @ApiOperation({ summary: 'Cancelar una reserva (solo administradores)' })
+  @ApiResponse({ status: 200, description: 'Reserva cancelada exitosamente' })
+  @ApiResponse({ status: 400, description: 'No se puede cancelar la reserva en su estado actual' })
+  @ApiResponse({ status: 404, description: 'Reserva no encontrada' })
+  async cancelarReserva(
+    @Param('id') id: string,
+    @Body() cancelarReservaDto: CancelarReservaDto,
+    @Request() req,
+  ) {
+    return this.reservasService.cancelarReservaAdmin(id, cancelarReservaDto, req.user.id);
   }
 
   @Post('cotizar')

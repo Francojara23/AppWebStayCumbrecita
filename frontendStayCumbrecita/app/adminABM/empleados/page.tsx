@@ -313,10 +313,6 @@ export default function EmpleadosPage() {
               <PlusCircle className="mr-2 h-4 w-4" />
               Alta empleados
             </Button>
-            <Button variant="outline" className="text-orange-600 border-orange-600">
-              <FileUp className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
           </div>
         </div>
 

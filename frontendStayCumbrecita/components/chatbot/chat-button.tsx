@@ -9,6 +9,7 @@ import ChatModal from "./chat-modal"
 interface ChatButtonProps {
   hospedajeId: string
   hospedajeName: string
+  chatbotActivo?: boolean
   variant?: "default" | "outline" | "icon"
   size?: "default" | "sm" | "lg"
   className?: string
@@ -17,12 +18,18 @@ interface ChatButtonProps {
 export default function ChatButton({
   hospedajeId,
   hospedajeName,
+  chatbotActivo = false,
   variant = "outline",
   size = "sm",
   className = ""
 }: ChatButtonProps) {
   const [isChatOpen, setIsChatOpen] = useState(false)
   const searchParams = useSearchParams()
+
+  // Si el chatbot no está activo, no renderizar nada
+  if (!chatbotActivo) {
+    return null
+  }
 
   // Extraer contexto automático desde URL params
   const context = {

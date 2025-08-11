@@ -33,7 +33,7 @@ interface BackendPayment {
   id: string
   reservaId?: string | null
   metodo: "TARJETA" | "TRANSFERENCIA"
-  estado: "PENDIENTE" | "PROCESANDO" | "APROBADO" | "RECHAZADO" | "CANCELADO" | "EXPIRADO" | "FALLIDO"
+  estado: "PENDIENTE" | "PROCESANDO" | "APROBADO" | "RECHAZADO" | "CANCELADO" | "REINTEGRADO" | "EXPIRADO" | "FALLIDO"
   montoReserva: number
   montoImpuestos: number
   montoTotal: number
@@ -74,7 +74,7 @@ interface UIPayment {
   method: "Tarjeta" | "Transferencia"
   amount: number
   invoice: string
-  status: "completed" | "pending" | "failed"
+  status: "completed" | "pending" | "failed" | "refunded"
   image: string
   details: PaymentDetails
 }
@@ -94,12 +94,13 @@ export default function HistorialPagosPage() {
     const hospedajeImage = backendPayment.reserva?.hospedaje?.imagenUrl || "/placeholder.jpg"
     
     // Mapear estados del backend a estados de la UI
-    const statusMap: Record<string, "completed" | "pending" | "failed"> = {
+    const statusMap: Record<string, "completed" | "pending" | "failed" | "refunded"> = {
       "APROBADO": "completed",
       "PENDIENTE": "pending",
       "PROCESANDO": "pending",
       "RECHAZADO": "failed",
       "CANCELADO": "failed",
+      "REINTEGRADO": "refunded",
       "EXPIRADO": "failed",
       "FALLIDO": "failed"
     }
@@ -315,6 +316,8 @@ export default function HistorialPagosPage() {
         return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"
       case "failed":
         return "bg-red-100 text-red-800 hover:bg-red-100"
+      case "refunded":
+        return "bg-purple-100 text-purple-800 hover:bg-purple-100"
       default:
         return "bg-gray-100 text-gray-800 hover:bg-gray-100"
     }
@@ -329,6 +332,8 @@ export default function HistorialPagosPage() {
         return "Pendiente"
       case "failed":
         return "Fallido"
+      case "refunded":
+        return "Reintegrado"
       default:
         return status
     }
@@ -377,6 +382,7 @@ export default function HistorialPagosPage() {
                 <SelectItem value="completed">Completados</SelectItem>
                 <SelectItem value="pending">Pendientes</SelectItem>
                 <SelectItem value="failed">Fallidos</SelectItem>
+                <SelectItem value="refunded">Reintegrados</SelectItem>
               </SelectContent>
             </Select>
 

@@ -88,6 +88,15 @@ export default function Sidebar() {
   
   // Hook para verificar permisos del usuario
   const { hasAdminAccess, isLoading: permissionsLoading } = useUserPermissions()
+  
+  // 🐛 DEBUG: Ver valores de permisos
+  console.log('🎯 SIDEBAR DEBUG:', {
+    hasAdminAccess,
+    permissionsLoading,
+    isLoadingUser,
+    shouldShowAdmin: hasAdminAccess && !permissionsLoading && !isLoadingUser,
+    shouldShowLimited: !hasAdminAccess && !permissionsLoading && !isLoadingUser
+  })
 
   // Handle logo click to redirect to home
   const handleLogoClick = () => {
@@ -217,8 +226,18 @@ export default function Sidebar() {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <nav className="flex-1 overflow-y-auto mt-5 px-2 space-y-1">
+        {/* 🔄 Indicador de carga mientras se verifican permisos */}
+        {(permissionsLoading || isLoadingUser) && (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
+              <p className="text-sm text-gray-500">Verificando permisos...</p>
+            </div>
+          </div>
+        )}
+
         {/* Reportería - Solo para usuarios con acceso administrativo */}
-        {hasAdminAccess && (
+        {hasAdminAccess && !permissionsLoading && !isLoadingUser && (
           <NavItem
             icon={<BarChart className="h-5 w-5" />}
             label="Reportería"
@@ -229,7 +248,7 @@ export default function Sidebar() {
         )}
         
         {/* Hospedajes - Solo para usuarios con acceso administrativo */}
-        {hasAdminAccess && (
+        {hasAdminAccess && !permissionsLoading && !isLoadingUser && (
           <NavItem
             icon={<Home className="h-5 w-5" />}
             label="Hospedajes"
@@ -249,7 +268,7 @@ export default function Sidebar() {
         )}
 
         {/* Submenu de Hospedajes - Solo para usuarios con acceso administrativo */}
-        {hasAdminAccess && isExpanded("Hospedajes") && (
+        {hasAdminAccess && !permissionsLoading && !isLoadingUser && isExpanded("Hospedajes") && (
           <div className="mt-1 space-y-1 transition-all duration-200 ease-in-out">
             <NavItem
               icon={<Home className="h-5 w-5 text-orange-600" />}
@@ -305,7 +324,8 @@ export default function Sidebar() {
         )}
 
         {/* Para usuarios SIN acceso administrativo, mostrar solo las rutas básicas */}
-        {!hasAdminAccess && !permissionsLoading && (
+        {/* ⚠️  MEJORADO: Solo mostrar cuando los permisos estén completamente cargados */}
+        {!hasAdminAccess && !permissionsLoading && !isLoadingUser && (
           <>
             <NavItem
               icon={<Home className="h-5 w-5" />}
@@ -341,7 +361,7 @@ export default function Sidebar() {
         />
         
         {/* Notificaciones - Solo para usuarios con acceso administrativo */}
-        {hasAdminAccess && (
+        {hasAdminAccess && !permissionsLoading && !isLoadingUser && (
           <NavItem
             icon={<Bell className="h-5 w-5" />}
             label="Notificaciones"
@@ -466,8 +486,23 @@ export default function Sidebar() {
           </div>
           
           <nav className={cn("flex-1 overflow-y-auto mt-5 px-2 space-y-1", isCollapsed && "px-1")}>
+            {/* 🔄 Indicador de carga mientras se verifican permisos */}
+            {(permissionsLoading || isLoadingUser) && !isCollapsed && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm text-gray-500">Verificando permisos...</p>
+                </div>
+              </div>
+            )}
+            {(permissionsLoading || isLoadingUser) && isCollapsed && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            )}
+
             {/* Reportería - Solo para usuarios con acceso administrativo */}
-            {hasAdminAccess && (
+            {hasAdminAccess && !permissionsLoading && !isLoadingUser && (
               <NavItem
                 icon={<BarChart className="h-5 w-5" />}
                 label="Reportería"
@@ -478,7 +513,7 @@ export default function Sidebar() {
             )}
             
             {/* Hospedajes - Solo para usuarios con acceso administrativo */}
-            {hasAdminAccess && (
+            {hasAdminAccess && !permissionsLoading && !isLoadingUser && (
               <NavItem
                 icon={<Home className="h-5 w-5" />}
                 label="Hospedajes"
@@ -499,7 +534,7 @@ export default function Sidebar() {
             )}
 
             {/* Submenu de Hospedajes - Solo para usuarios con acceso administrativo */}
-            {hasAdminAccess && isExpanded("Hospedajes") && !isCollapsed && (
+            {hasAdminAccess && !permissionsLoading && !isLoadingUser && isExpanded("Hospedajes") && !isCollapsed && (
               <div className="mt-1 space-y-1 transition-all duration-200 ease-in-out">
                 <NavItem
                   icon={<Home className="h-5 w-5 text-orange-600" />}
@@ -564,7 +599,8 @@ export default function Sidebar() {
             )}
 
             {/* Para usuarios SIN acceso administrativo, mostrar solo las rutas básicas */}
-            {!hasAdminAccess && !permissionsLoading && (
+            {/* ⚠️  MEJORADO: Solo mostrar cuando los permisos estén completamente cargados */}
+            {!hasAdminAccess && !permissionsLoading && !isLoadingUser && (
               <>
                 <NavItem
                   icon={<Home className="h-5 w-5" />}
@@ -600,7 +636,7 @@ export default function Sidebar() {
             />
             
             {/* Notificaciones - Solo para usuarios con acceso administrativo */}
-            {hasAdminAccess && (
+            {hasAdminAccess && !permissionsLoading && !isLoadingUser && (
               <NavItem
                 icon={<Bell className="h-5 w-5" />}
                 label="Notificaciones"

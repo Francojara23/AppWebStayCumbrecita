@@ -12,8 +12,10 @@ import { ReservaLinea } from "./entidades/reserva-linea.entity";
 
 import { HuespedReserva } from "./entidades/huesped-reserva.entity";
 import { Pago } from "../pagos/entidades/pago.entity";
+import { HistorialEstadoPago } from "../pagos/entidades/historial-estado-pago.entity";
 import { CrearReservaDto } from "./dto/crear-reserva.dto";
 import { ActualizarEstadoReservaDto } from "./dto/actualizar-estado-reserva.dto";
+import { CancelarReservaDto } from "./dto/cancelar-reserva.dto";
 import { EstadoReserva } from "../common/enums/estado-reserva.enum";
 import { HabitacionesService } from "../habitaciones/habitaciones.service";
 import { HospedajesService } from "../hospedajes/hospedajes.service";
@@ -1780,5 +1782,101 @@ export class ReservasService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Cancela una reserva desde el panel administrativo
+   * Solo administradores, propietarios o empleados pueden cancelar reservas
+   */
+  async cancelarReservaAdmin(
+    reservaId: string,
+    dto: CancelarReservaDto,
+    adminUserId: string
+  ): Promise<any> {
+    return await this.dataSource.transaction(async (manager) => {
+      // 1. Validar que la reserva existe
+      const reserva = await manager.findOne(Reserva, {
+        where: { id: reservaId },
+        relations: ['turista', 'hospedaje', 'pagos']
+      });
+
+      if (!reserva) {
+        throw new NotFoundException('Reserva no encontrada');
+      }
+
+      // 2. Validar que el estado actual permite cancelación
+      const estadosPermitidos = [
+        EstadoReserva.CREADA,
+        EstadoReserva.PENDIENTE_PAGO,
+        EstadoReserva.PAGADA,
+        EstadoReserva.CONFIRMADA,
+        EstadoReserva.CHECK_IN
+      ];
+
+      if (!estadosPermitidos.includes(reserva.estado)) {
+        throw new BadRequestException(
+          `No se puede cancelar una reserva en estado ${reserva.estado}`
+        );
+      }
+
+      // 3. Procesar cambios de estado de pagos según lógica de negocio
+      for (const pago of reserva.pagos) {
+        let nuevoEstadoPago: EstadoPago;
+        
+        if (pago.estado === EstadoPago.APROBADO) {
+          // Si está APROBADO = dinero ya cobrado → REINTEGRADO
+          nuevoEstadoPago = EstadoPago.REINTEGRADO;
+        } else if (pago.estado === EstadoPago.PENDIENTE || pago.estado === EstadoPago.PROCESANDO) {
+          // Si está PENDIENTE/PROCESANDO = dinero no cobrado → CANCELADO
+          nuevoEstadoPago = EstadoPago.CANCELADO;
+        } else {
+          // Si ya está CANCELADO, RECHAZADO, etc. → no cambiar
+          continue;
+        }
+
+        // Actualizar estado del pago
+        await manager.update(Pago, pago.id, { estado: nuevoEstadoPago });
+
+        // Crear historial con información del admin
+        await manager.save(HistorialEstadoPago, {
+          pago: { id: pago.id },
+          estadoAnterior: pago.estado,
+          estadoNuevo: nuevoEstadoPago,
+          motivo: `Cancelado por administrador: ${dto.motivo}`,
+          usuario: { id: adminUserId },
+          metadatos: {
+            canceladoPor: dto.canceladoPor || 'ADMIN',
+            adminUserId,
+            reservaId
+          },
+          timestamp: new Date()
+        });
+      }
+
+      // 4. Actualizar estado de la reserva
+      await manager.update(Reserva, reservaId, { estado: EstadoReserva.CANCELADA });
+
+      // 5. Notificación condicional al turista
+      if (dto.notificarTurista !== false) {
+        try {
+          await this.notificacionesService.crearNotificacionAutomatica(
+            "reserva_cancelada",
+            reserva.turista.id,
+            { 
+              reservaId, 
+              motivo: dto.motivo,
+              hospedajeNombre: reserva.hospedaje.nombre,
+              adminUserId
+            }
+          );
+        } catch (error) {
+          console.error('Error enviando notificación:', error);
+          // No fallar la cancelación por error de notificación
+        }
+      }
+
+      // 6. Retornar reserva actualizada
+      return this.findOne(reservaId);
+    });
   }
 }

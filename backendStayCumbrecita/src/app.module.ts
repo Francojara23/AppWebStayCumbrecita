@@ -50,7 +50,7 @@ import { MailService } from "./mail/mail.service";
         database: config.get("DB_DATABASE"), // Nombre de la base de datos
         entities: [__dirname + "/**/*.entity{.ts,.js}"],
         autoLoadEntities: true, // Carga automáticamente las entidades (solo para desarrollo)
-        synchronize: true, // Sincroniza el esquema de la base de datos (solo para desarrollo)
+        synchronize: false, // Deshabilitado temporalmente para evitar conflictos con enums
       }),
     }),
 

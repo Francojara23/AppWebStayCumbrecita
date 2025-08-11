@@ -161,6 +161,7 @@ export default function SearchPage() {
                   price: precioMinimo,
                   rating: hospedaje.calificacionPromedio || null,
                   featured: hospedaje.featured || false,
+                  chatbot_activo: hospedaje.chatbot_activo || false,
                   services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
                   roomServices: [],
                   availableRooms: hospedaje.cantidadHabitaciones || 1,
@@ -178,6 +179,7 @@ export default function SearchPage() {
                   price: rangosPrecio?.precioMinimo || 129900,
                   rating: hospedaje.calificacionPromedio || null,
                   featured: hospedaje.featured || false,
+                  chatbot_activo: hospedaje.chatbot_activo || false,
                   services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
                   roomServices: [],
                   availableRooms: hospedaje.cantidadHabitaciones || 1,
@@ -199,6 +201,7 @@ export default function SearchPage() {
             price: rangosPrecio?.precioMinimo || 129900,
             rating: hospedaje.calificacionPromedio || null,
             featured: hospedaje.destacado || false,
+            chatbot_activo: hospedaje.chatbot_activo || false,
             services: hospedaje.servicios?.map((s: any) => s.servicio?.id) || [],
             roomServices: [],
             availableRooms: hospedaje.cantidadHabitaciones || 1,
@@ -805,9 +808,12 @@ export default function SearchPage() {
         )}
       </div>
 
-      <div className="flex flex-1">
-        {/* Sidebar Filters */}
-        <div className="w-80 bg-white border-r p-6 h-screen overflow-y-auto sticky top-0">
+      {/* Main Content Section with Container */}
+      <div className="bg-gray-100 border-b">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex">
+          {/* Sidebar Filters */}
+          <div className="w-80 bg-white border-r p-4 h-screen overflow-y-auto sticky top-0 rounded-l-lg">
           <h3 className="text-lg font-semibold mb-4">Filtros</h3>
           
           {/* Price Range */}
@@ -933,7 +939,7 @@ export default function SearchPage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 bg-white rounded-r-lg py-4 pr-0 pl-4">
           {/* Header with results and sorting */}
           <div className="flex justify-between items-center mb-6">
             <div>
@@ -943,7 +949,7 @@ export default function SearchPage() {
               <p className="text-gray-600">La Cumbrecita, Córdoba</p>
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 pr-4">
               {/* View Mode Toggle */}
               <div className="flex border border-orange-200 rounded-lg overflow-hidden">
                 <Button
@@ -974,7 +980,7 @@ export default function SearchPage() {
 
               {/* Sort Options */}
               <Select value={sortOption} onValueChange={setSortOption}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] pr-4">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1063,7 +1069,7 @@ export default function SearchPage() {
               </Button>
             </div>
           ) : (
-            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
+            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pr-4" : "space-y-4 pr-4"}>
               {filteredHotels.map((hotel: any) => (
                 <div
                   key={hotel.id}
@@ -1120,7 +1126,7 @@ export default function SearchPage() {
                     
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="text-2xl font-bold text-orange-600">
+                        <span className="text-xl font-bold text-orange-600">
                           ${new Intl.NumberFormat('es-AR', { 
                             minimumFractionDigits: 2, 
                             maximumFractionDigits: 2 
@@ -1133,8 +1139,10 @@ export default function SearchPage() {
                         <ChatButton
                           hospedajeId={hotel.id}
                           hospedajeName={hotel.name}
-                          variant="icon"
+                          chatbotActivo={hotel.chatbot_activo}
+                          variant="default"
                           size="sm"
+                          className="bg-[#CD6C22] hover:bg-[#A83921] text-white rounded-full px-4 py-2 shadow-lg"
                         />
                       </div>
                     </div>
@@ -1143,6 +1151,8 @@ export default function SearchPage() {
               ))}
             </div>
           )}
+        </div>
+          </div>
         </div>
       </div>
 

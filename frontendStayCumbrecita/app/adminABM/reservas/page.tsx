@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Eye, Trash2, Search, Plus, FileText, Calendar, List } from "lucide-react"
+import { Eye, Trash2, Search, Plus, FileText, Calendar, List, X, AlertTriangle, CreditCard, Info, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,12 +11,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import DeleteConfirmationDialog from "@/components/delete-confirmation-dialog"
 import ReservationCalendarView from "@/components/adminABM/reservation-calendar-view"
 import { getReservationsForAdmin, type GetReservationsResponse } from "@/app/actions/reservations/getReservations"
-import { Loader2 } from "lucide-react"
+import { cancelReservation } from "@/app/actions/reservations/cancelReservation"
 import { toast } from "@/hooks/use-toast"
 
 // Actualizar el tipo para usar datos del backend
@@ -51,6 +52,13 @@ export default function ReservasPage() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list")
   const [selectedHospedaje, setSelectedHospedaje] = useState<string>("all")
   const [hospedajes, setHospedajes] = useState<Array<{id: string, nombre: string}>>([])
+  
+  // Estados para modal de cancelación
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
+  const [reservationToCancel, setReservationToCancel] = useState<Reservation | null>(null)
+  const [cancelMotivo, setCancelMotivo] = useState("")
+  const [notificarTurista, setNotificarTurista] = useState(true)
+  const [isCanceling, setIsCanceling] = useState(false)
   const [isLoadingHospedajes, setIsLoadingHospedajes] = useState(false)
 
   // Fetch reservations from backend
@@ -60,6 +68,7 @@ export default function ReservasPage() {
         setIsLoading(true)
         const response = await getReservationsForAdmin()
         if (response && response.data) {
+          
           // Transform backend data to component format
           const transformedData: Reservation[] = response.data.reservations.map((res: any) => {
             // Obtener información del turista
@@ -98,6 +107,7 @@ export default function ReservasPage() {
               paymentMethod: firstPayment ? 'Tarjeta/Transferencia' : null, // Simplificado
             }
           })
+          
           setReservations(transformedData)
           
           // Extraer hospedajes únicos para el filtro
@@ -137,8 +147,12 @@ export default function ReservasPage() {
       reservation.hotelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (reservation.paymentId && reservation.paymentId.toLowerCase().includes(searchQuery.toLowerCase()))
 
-    // Filter out canceled reservations unless showCanceled is true
-    const matchesStatus = showCanceled ? true : !["CANCELADA", "Cancelada"].includes(reservation.status)
+    // Filter based on canceled status
+    const matchesStatus = showCanceled 
+      ? ["CANCELADA", "Cancelada"].includes(reservation.status)  // Show ONLY canceled when toggle is ON
+      : !["CANCELADA", "Cancelada"].includes(reservation.status) // Hide canceled when toggle is OFF
+    
+
     
     // Filter by selected hospedaje
     const matchesHospedaje = selectedHospedaje === "all" || reservation.hotelName === selectedHospedaje
@@ -178,6 +192,126 @@ export default function ReservasPage() {
   const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setItemsPerPage(Number(e.target.value))
     setCurrentPage(1)
+  }
+
+  // Función para determinar si una reserva se puede cancelar
+  const canCancelReservation = (status: string) => {
+    const cancelableStatuses = ['CREADA', 'PENDIENTE_PAGO', 'PAGADA', 'CONFIRMADA', 'CHECK_IN']
+    return cancelableStatuses.includes(status)
+  }
+
+  // Función para manejar el click del botón cancelar
+  const handleCancelClick = (reservation: Reservation) => {
+    setReservationToCancel(reservation)
+    setIsCancelModalOpen(true)
+    setCancelMotivo("")
+    setNotificarTurista(true)
+  }
+
+  // Función para confirmar la cancelación
+  const handleConfirmCancel = async () => {
+    if (!reservationToCancel || !cancelMotivo.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "El motivo de cancelación es requerido"
+      })
+      return
+    }
+
+    setIsCanceling(true)
+    try {
+      const result = await cancelReservation(reservationToCancel.id, {
+        motivo: cancelMotivo,
+        notificarTurista,
+        canceladoPor: 'ADMIN'
+      })
+
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+
+      // Determinar mensaje según si hay reintegro
+      const esReintegro = reservationToCancel.paymentStatus === 'APROBADO'
+      const mensaje = esReintegro 
+        ? '✅ Reserva cancelada. Recuerda procesar el reintegro en tu pasarela de pago.'
+        : '✅ Reserva cancelada exitosamente.'
+
+      toast({
+        title: "Cancelación exitosa",
+        description: mensaje
+      })
+
+      // Cerrar modal y limpiar estado
+      setIsCancelModalOpen(false)
+      setReservationToCancel(null)
+      setCancelMotivo("")
+      setNotificarTurista(true)
+
+      // Recargar datos usando la misma lógica de transformación que la carga inicial
+      const fetchReservations = async () => {
+        try {
+          setIsLoading(true)
+          const response = await getReservationsForAdmin()
+          if (response && response.data) {
+            // Transform backend data to component format (MISMA LÓGICA QUE CARGA INICIAL)
+            const transformedData: Reservation[] = response.data.reservations.map((res: any) => {
+              // Obtener información del turista
+              const guestName = res.turista ? `${res.turista.nombre || ''} ${res.turista.apellido || ''}`.trim() : 'Sin nombre'
+              const guestEmail = res.turista?.email || 'Sin email'
+              
+              // Obtener información del hospedaje
+              const hotelName = res.hospedaje?.nombre || 'Sin hospedaje'
+              
+              // Obtener tipo de habitación desde líneas de reserva
+              const roomType = res.lineas?.[0]?.habitacion?.tipoHabitacion?.nombre || 'Sin tipo'
+              
+              // Calcular totales
+              const adults = res.cantidadPersonas || 0
+              const children = res.cantidadPersonas || 0
+              const totalAmount = parseFloat(res.montoTotal) || 0
+              
+              // Obtener información de pago
+              const firstPayment = res.pagos?.[0] || null
+              
+              return {
+                id: res.id,
+                checkIn: new Date(res.fechaInicio).toLocaleDateString('es-ES'),
+                checkOut: new Date(res.fechaFin).toLocaleDateString('es-ES'),
+                guestName,
+                guestEmail,
+                roomType,
+                adults,
+                children,
+                totalAmount,
+                status: res.estado,
+                hotelName,
+                paymentId: firstPayment?.id || null,
+                paymentStatus: firstPayment?.estado || null,
+                paymentMethod: firstPayment ? 'Tarjeta/Transferencia' : null,
+              }
+            })
+            
+            setReservations(transformedData)
+          }
+        } catch (error) {
+          console.error('Error fetching reservations:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+      await fetchReservations()
+
+    } catch (error) {
+      console.error('Error canceling reservation:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo cancelar la reserva. Inténtalo de nuevo."
+      })
+    } finally {
+      setIsCanceling(false)
+    }
   }
 
   const getStatusBadgeClass = (status: string) => {
@@ -227,14 +361,6 @@ export default function ReservasPage() {
                 </p>
               )}
             </div>
-        <div className="flex gap-2">
-          <Button className="bg-orange-600 hover:bg-orange-700">
-            <Plus className="mr-2 h-4 w-4" /> Nueva Reserva
-          </Button>
-          <Button variant="outline" className="border-orange-600 text-orange-600 hover:bg-orange-50">
-            <FileText className="mr-2 h-4 w-4" /> Exportar
-          </Button>
-        </div>
       </div>
 
       <div className="flex justify-between items-center mb-4">
@@ -360,6 +486,20 @@ export default function ReservasPage() {
                             <Button variant="ghost" size="icon" onClick={() => handleViewDetails(reservation)}>
                               <Eye className="h-4 w-4" />
                             </Button>
+                            
+                            {/* Botón de cancelación solo para reservas cancelables */}
+                            {canCancelReservation(reservation.status) && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleCancelClick(reservation)}
+                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                title="Cancelar reserva"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                            
                             <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(reservation.id)}>
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
@@ -560,6 +700,139 @@ export default function ReservasPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Reservation Modal */}
+      <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-orange-500 mr-2" />
+              Cancelar Reserva {reservationToCancel ? `- ${reservationToCancel.guestName}` : ''}
+            </DialogTitle>
+            <DialogDescription>
+              Esta acción cancelará la reserva y procesará los cambios de estado según el estado del pago.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {reservationToCancel && (
+            <div className="space-y-6">
+              {/* Información de la reserva */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-3">📋 Información de la reserva:</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Huésped:</span>
+                    <p className="font-medium">{reservationToCancel.guestName}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Email:</span>
+                    <p className="font-medium">{reservationToCancel.guestEmail}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Fechas:</span>
+                    <p className="font-medium">
+                      {new Date(reservationToCancel.checkIn).toLocaleDateString()} - {new Date(reservationToCancel.checkOut).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Monto:</span>
+                    <p className="font-medium">${reservationToCancel.totalAmount.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advertencia sobre reintegro */}
+              {(() => {
+                const esReintegro = reservationToCancel.paymentStatus === 'APROBADO'
+                return (
+                  <div className={`p-4 rounded-lg border ${esReintegro ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <h4 className="font-medium mb-2 flex items-center">
+                      {esReintegro ? (
+                        <>
+                          <CreditCard className="h-4 w-4 mr-2 text-orange-600" />
+                          💰 Se procesará un reintegro
+                        </>
+                      ) : (
+                        <>
+                          <Info className="h-4 w-4 mr-2 text-blue-600" />
+                          📋 Cancelación sin cargo
+                        </>
+                      )}
+                    </h4>
+                    <ul className="text-sm space-y-1">
+                      {esReintegro ? (
+                        <>
+                          <li>• El pago será marcado como "REINTEGRADO"</li>
+                          <li>• Deberás procesar el reintegro manualmente en tu pasarela de pago</li>
+                          <li>• El turista será notificado sobre el proceso de reintegro</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>• No se realizó ningún cargo efectivo</li>
+                          <li>• El pago será marcado como "CANCELADO"</li>
+                          <li>• La cancelación es inmediata</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                )
+              })()}
+
+              {/* Motivo de cancelación */}
+              <div>
+                <Label htmlFor="motivo">Motivo de la cancelación *</Label>
+                <Textarea
+                  id="motivo"
+                  value={cancelMotivo}
+                  onChange={(e) => setCancelMotivo(e.target.value)}
+                  placeholder="Ej: Solicitud del huésped por emergencia familiar, cambio de fechas no disponible, problema con el hospedaje..."
+                  rows={3}
+                  required
+                />
+              </div>
+
+              {/* Notificación al turista */}
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="notificar-turista"
+                  checked={notificarTurista}
+                  onCheckedChange={setNotificarTurista}
+                />
+                <Label htmlFor="notificar-turista">
+                  Notificar automáticamente al turista sobre la cancelación
+                </Label>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsCancelModalOpen(false)} 
+              disabled={isCanceling}
+            >
+              Mantener reserva
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleConfirmCancel}
+              disabled={isCanceling || !cancelMotivo.trim()}
+            >
+              {isCanceling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  <X className="h-4 w-4 mr-2" />
+                  {reservationToCancel?.paymentStatus === 'APROBADO' ? 'Cancelar y reintegrar' : 'Cancelar reserva'}
+                </>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -23,12 +23,16 @@ interface User {
 export function useUser() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+  console.log('🔥 useUser ESTADO ACTUAL:', { user, isLoading })
 
   useEffect(() => {
+    console.log('🌟 useUser useEffect INICIADO')
     let isMounted = true
     
     // Timeout de seguridad para evitar loading infinito
     const loadingTimeout = setTimeout(() => {
+      console.log('⏰ useUser TIMEOUT de 10 segundos alcanzado')
       if (isMounted) {
         setIsLoading(false)
       }
@@ -74,7 +78,7 @@ export function useUser() {
       try {
         // Usar la URL correcta según el contexto (cliente o servidor)
         const apiUrl = getApiUrl()
-        console.log('🔍 Obteniendo usuario desde:', `${apiUrl}/auth/me`)
+        console.log('🔍 DEBUG: Obteniendo usuario desde:', `${apiUrl}/auth/me`)
         
         // Hacer petición al servidor (el navegador enviará automáticamente las cookies httpOnly)
         const response = await fetch(`${apiUrl}/auth/me`, {
@@ -130,28 +134,61 @@ export function useUser() {
 
     const loadUserData = async () => {
       try {
-        // Verificar si hay indicios de sesión usando user_info
+        console.log('🍪 DEBUG: Verificando cookies disponibles:', document.cookie)
+        
+        // Verificar si hay auth_token (más importante que user_info)
+        const cookies = document.cookie.split(';')
+        const authTokenCookie = cookies.find(cookie => 
+          cookie.trim().startsWith('auth_token=')
+        )
         const userInfoFromCookie = getUserInfoFromCookie()
         
-        if (!userInfoFromCookie) {
-          if (isMounted) {
-            setUser(null)
-            setIsLoading(false)
-          }
-          clearTimeout(loadingTimeout)
-          return
+        console.log('🔑 DEBUG: Cookies encontradas:', {
+          authToken: !!authTokenCookie,
+          userInfo: !!userInfoFromCookie,
+          allCookies: cookies.map(c => c.trim().split('=')[0])
+        })
+        
+        // Si no hay auth_token accesible desde JavaScript, usar getCurrentUser action
+        // (Las cookies httpOnly no son accesibles desde JS del cliente)
+        if (!authTokenCookie) {
+          console.log('🔒 auth_token no accesible desde JS (probablemente httpOnly), usando server action...')
+        } else {
+          console.log('✅ auth_token encontrado, validando con servidor...')
         }
 
-        // Siempre validar con el servidor para verificar que el token httpOnly sigue válido
-        const serverUser = await getUserFromServer()
+        // USAR SERVER ACTION para acceder a cookies httpOnly
+        console.log('📡 Llamando a getCurrentUser server action...')
+        const { getCurrentUser } = await import('@/app/actions/auth/getCurrentUser')
+        const userResponse = await getCurrentUser()
         
+        console.log('📡 Respuesta de getCurrentUser:', userResponse)
+
         if (isMounted) {
-        if (serverUser) {
-          setUser(serverUser)
+          if (userResponse.success && userResponse.data) {
+            // Mapear los datos del server action al formato del hook
+            const mappedUser = {
+              id: userResponse.data.id,
+              firstName: userResponse.data.nombre,
+              lastName: userResponse.data.apellido,
+              email: userResponse.data.email,
+              phone: userResponse.data.telefono || null,
+              dni: userResponse.data.dni || null,
+              direccion: userResponse.data.direccion || null,
+              role: userResponse.data.roles?.[0]?.nombre === 'TURISTA' ? 'TOURIST' as const : 'ADMIN' as const,
+              fotoUrl: userResponse.data.fotoUrl,
+              originalRole: userResponse.data.roles?.[0]?.nombre
+            }
+            
+            console.log('✅ Usuario mapeado desde server action:', mappedUser)
+            setUser(mappedUser)
           } else {
-            // Si el servidor rechaza, limpiar user_info
-            clearExpiredAuth()
+            console.log('❌ getCurrentUser falló:', userResponse.error)
             setUser(null)
+            if (userResponse.shouldRedirectToHome) {
+              // Limpiar cookies no válidas
+              clearExpiredAuth()
+            }
           }
         }
       } catch (error) {

@@ -642,10 +642,6 @@ export default function PublicidadPage() {
               <Search className="h-4 w-4 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-500" />
             </div>
           </div>
-          <Button variant="outline" className="text-orange-600 border-orange-600">
-            <FileUp className="mr-2 h-4 w-4" />
-            Exportar
-          </Button>
         </div>
 
         <div className="border rounded-md">

@@ -57,7 +57,7 @@ export default function PagosPage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [showDeleted, setShowDeleted] = useState(false)
+  const [showCanceledOrRefunded, setShowCanceledOrRefunded] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -146,7 +146,7 @@ export default function PagosPage() {
     fetchPayments()
   }, [])
 
-  // Filter payments based on search query, deleted status, and hospedaje
+  // Filter payments based on search query, canceled/refunded status, and hospedaje
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
       payment.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -161,8 +161,12 @@ export default function PagosPage() {
     // Filter by selected hospedaje
     const matchesHospedaje = selectedHospedaje === "all" || payment.reservation.hotelName === selectedHospedaje
 
-    // For now, we don't have deleted payments in our mock data
-    return matchesSearch && matchesHospedaje
+    // Filter based on canceled/refunded status
+    const matchesStatus = showCanceledOrRefunded 
+      ? ["CANCELADO", "REINTEGRADO", "Cancelado", "Reintegrado"].includes(payment.status)  // Show ONLY canceled/refunded when toggle is ON
+      : !["CANCELADO", "REINTEGRADO", "Cancelado", "Reintegrado"].includes(payment.status) // Hide canceled/refunded when toggle is OFF
+
+    return matchesSearch && matchesHospedaje && matchesStatus
   })
 
   // Pagination
@@ -216,6 +220,9 @@ export default function PagosPage() {
       case "CANCELADO":
       case "Cancelado":
         return "bg-gray-100 text-gray-800 hover:bg-gray-100"
+      case "REINTEGRADO":
+      case "Reintegrado":
+        return "bg-purple-100 text-purple-800 hover:bg-purple-100"
       case "EXPIRADO":
       case "Expirado":
         return "bg-orange-100 text-orange-800 hover:bg-orange-100"
@@ -241,9 +248,6 @@ export default function PagosPage() {
         <div className="flex gap-2">
           <Button className="bg-orange-600 hover:bg-orange-700">
             <Plus className="mr-2 h-4 w-4" /> Registrar pago
-          </Button>
-          <Button variant="outline" className="border-orange-600 text-orange-600 hover:bg-orange-50">
-            <FileText className="mr-2 h-4 w-4" /> Exportar
           </Button>
         </div>
       </div>
@@ -300,9 +304,9 @@ export default function PagosPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
-          <Label htmlFor="show-deleted" className="text-sm text-orange-600 font-medium">
-            Ver Pagos eliminados
+          <Switch id="show-canceled-refunded" checked={showCanceledOrRefunded} onCheckedChange={setShowCanceledOrRefunded} />
+          <Label htmlFor="show-canceled-refunded" className="text-sm text-orange-600 font-medium">
+            Ver Pagos cancelados o reintegrados
           </Label>
         </div>
       </div>

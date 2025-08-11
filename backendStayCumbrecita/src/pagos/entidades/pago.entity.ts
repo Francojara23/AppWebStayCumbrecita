@@ -17,6 +17,7 @@ export enum EstadoPago {
   APROBADO = 'APROBADO',
   RECHAZADO = 'RECHAZADO',
   CANCELADO = 'CANCELADO',
+  REINTEGRADO = 'REINTEGRADO',
   EXPIRADO = 'EXPIRADO',
   FALLIDO = 'FALLIDO'
 }
@@ -105,8 +106,8 @@ export class Pago extends BaseEntityAudit {
   fechaPago: Date;
 
   @Column({
-    type: 'enum',
-    enum: EstadoPago,
+    type: 'varchar',
+    length: 50,
     name: 'estado'
   })
   estado: EstadoPago;

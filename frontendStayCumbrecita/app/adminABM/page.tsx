@@ -279,10 +279,6 @@ export default function AdminABMPage() {
         <div className="px-4 py-4 sm:px-6 flex justify-between items-center">
           <h1 className="text-xl font-medium text-orange-700">Hospedajes / Registrados</h1>
           <div className="flex gap-2">
-            <Button variant="outline" className="border-orange-600 text-orange-600">
-              <FileText className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
             {/* Botón Alta hospedaje - Solo para propietarios */}
             {hasAdminAccess && (
               <Button

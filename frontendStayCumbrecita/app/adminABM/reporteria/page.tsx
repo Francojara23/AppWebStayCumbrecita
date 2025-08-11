@@ -145,10 +145,6 @@ export default function ReporteriaPage() {
                 <SelectItem value="cabanas">Cabañas del Bosque</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="border-orange-600 text-orange-600">
-              <FileUp className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
           </div>
         </div>
       </header>
