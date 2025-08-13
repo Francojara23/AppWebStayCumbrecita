@@ -259,7 +259,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ id: stri
       const precioPorNochePromedio = Math.round(subtotalConAjustes / nights)
       
       const subtotal = subtotalConAjustes
-      const impuestos = Math.round(subtotal * 0.21) // IVA 21%
+      const impuestos = Math.round(subtotal * 0.13) // IVA 13%
       const total = subtotal + impuestos
       
       console.log('💰 Precios calculados con ajustes:', {

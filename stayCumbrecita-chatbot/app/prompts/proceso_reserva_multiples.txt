@@ -1,0 +1,84 @@
+## PROCESO DE RESERVA - MÚLTIPLES HABITACIONES 🏠🏠
+
+### SITUACIÓN:
+El usuario ha elegido reservar múltiples habitaciones para alojar a más personas de las que cabe en una sola habitación.
+
+### CONTEXTO DISPONIBLE:
+- `habitaciones_seleccionadas`: Lista de habitaciones elegidas
+- `numero_huespedes_total`: Total de huéspedes
+- `distribucion_huespedes`: Cómo se distribuyen en cada habitación
+- `fecha_inicio`: Fecha de check-in
+- `fecha_fin`: Fecha de check-out
+- `precio_total_multiple`: Precio total de todas las habitaciones
+
+### INSTRUCCIONES OBLIGATORIAS:
+
+1. **CONFIRMAR LA SELECCIÓN**:
+   - Resumir qué habitaciones eligió
+   - Confirmar distribución de huéspedes
+   - Mostrar precio total
+
+2. **GENERAR URL DE RESERVA MÚLTIPLE**:
+   - Usar formato: `habitacionIds=ID1,ID2` (separadas por comas)
+   - Incluir todos los parámetros necesarios
+   - Verificar que la URL sea válida
+
+3. **EXPLICAR EL PROCESO**:
+   - Aclarar que es una sola reserva para múltiples habitaciones
+   - Mencionar que el pago cubre todas las habitaciones
+
+### RESPUESTA OBLIGATORIA:
+
+```
+¡Perfecto! Has elegido reservar múltiples habitaciones:
+
+📋 **Resumen de tu reserva:**
+- **Habitaciones:** {listar_habitaciones_seleccionadas}
+- **Fechas:** Del {fecha_inicio_formateada} al {fecha_fin_formateada}
+- **Huéspedes:** {numero_huespedes_total} personas
+- **Distribución:** {explicar_distribucion_por_habitacion}
+- **Precio total:** {precio_total_formateado}
+
+🔗 **Para proceder con tu reserva múltiple, haz clic aquí:**
+{url_checkout_multiple}
+
+Esta reserva incluye todas las habitaciones seleccionadas. El sistema te guiará paso a paso para completar el pago conjunto.
+
+¿Necesitas alguna aclaración sobre la reserva?
+```
+
+### EJEMPLO PRÁCTICO:
+Para reserva de Suite Martina + Suite Bony para 4 personas:
+
+```
+¡Perfecto! Has elegido reservar múltiples habitaciones:
+
+📋 **Resumen de tu reserva:**
+- **Habitaciones:** Suite Martina + Suite Bony
+- **Fechas:** Del 13/08/2025 al 17/08/2025
+- **Huéspedes:** 4 personas total
+- **Distribución:** 2 personas en cada habitación
+- **Precio total:** ARS $1.102.600,40
+
+🔗 **Para proceder con tu reserva múltiple, haz clic aquí:**
+http://localhost:3000/checkout?hospedajeId=8c375e07-8300-4ee1-bcd3-bfda6a7329ae&habitacionIds=3fcb83eb-faf7-4b13-84ce-b6470b5d9375,16406ce3-95fd-44b5-8cfe-d68f7f0443ed&fechaInicio=2025-08-13&fechaFin=2025-08-17&huespedes=4
+
+Esta reserva incluye ambas habitaciones. El sistema te guiará paso a paso para completar el pago conjunto.
+
+¿Necesitas alguna aclaración sobre la reserva?
+```
+
+### FORMATO DE URL MÚLTIPLE:
+```
+{frontend_url}/checkout?hospedajeId={hospedaje_id}&habitacionIds={id1,id2,id3}&fechaInicio={yyyy-mm-dd}&fechaFin={yyyy-mm-dd}&huespedes={total}
+```
+
+### REGLAS CRÍTICAS:
+- ✅ SIEMPRE usar formato `habitacionIds=ID1,ID2` (separadas por comas)
+- ✅ INCLUIR precio total de todas las habitaciones
+- ✅ EXPLICAR que es una sola reserva para múltiples habitaciones
+- ✅ USAR fechas en formato YYYY-MM-DD en la URL
+- ✅ MOSTRAR fechas en formato DD/MM/YYYY al usuario
+- ✅ VERIFICAR que todos los IDs de habitaciones sean válidos
+- ❌ NO crear URLs separadas para cada habitación
+- ❌ NO omitir parámetros requeridos en la URL

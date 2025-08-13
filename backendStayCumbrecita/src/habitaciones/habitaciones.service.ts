@@ -859,8 +859,8 @@ export class HabitacionesService {
       }
     }
 
-    // Aplicar 21% de impuestos y cargos al precio final
-    precioFinal *= 1.21;
+    // Aplicar 13% de impuestos y cargos al precio final
+    precioFinal *= 1.13;
 
     return Math.round(precioFinal * 100) / 100; // Redondear a 2 decimales
   }

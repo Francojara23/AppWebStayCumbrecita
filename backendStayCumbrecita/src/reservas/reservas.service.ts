@@ -613,7 +613,7 @@ export class ReservasService {
       });
     }
 
-    const impuestos21 = subtotal * 0.21;
+    const impuestos21 = subtotal * 0.13;
     const total = subtotal + impuestos21;
 
     return {

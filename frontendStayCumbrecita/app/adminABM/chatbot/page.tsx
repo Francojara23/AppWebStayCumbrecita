@@ -371,7 +371,6 @@ export default function ChatbotPage() {
               <TableRow>
                 <TableHead>Hospedaje</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead>Ubicación</TableHead>
                 <TableHead>Estado del Chatbot</TableHead>
                 <TableHead>PDF Configurado</TableHead>
                 <TableHead>Tono</TableHead>
@@ -382,7 +381,7 @@ export default function ChatbotPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-60 text-center">
+                  <TableCell colSpan={7} className="h-60 text-center">
                     <div className="flex items-center justify-center h-full">
                       <Bot className="h-8 w-8 animate-spin text-orange-600" />
                       <span className="ml-2">Cargando chatbots...</span>
@@ -391,7 +390,7 @@ export default function ChatbotPage() {
                 </TableRow>
               ) : currentItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-60 text-center">
+                  <TableCell colSpan={7} className="h-60 text-center">
                     <div className="flex items-center justify-center h-full bg-gray-50 rounded-md">
                       <p className="text-gray-500">
                         {searchQuery || statusFilter !== "todos" 
@@ -407,7 +406,6 @@ export default function ChatbotPage() {
                   <TableRow key={hospedaje.id}>
                     <TableCell className="font-medium">{hospedaje.nombre}</TableCell>
                     <TableCell>{hospedaje.tipoHotel?.nombre || "Sin tipo"}</TableCell>
-                    <TableCell>{hospedaje.ciudad}, {hospedaje.provincia}</TableCell>
                     <TableCell>{getStatusBadge(hospedaje.configStatus)}</TableCell>
                     <TableCell>
                       {hospedaje.chatbotConfig?.pdfFilename ? (

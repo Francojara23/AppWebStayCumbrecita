@@ -1,0 +1,69 @@
+## CASO 2: CAPACIDAD EXCEDIDA - CONSULTA GENERAL 🏨
+
+### SITUACIÓN:
+El usuario consulta disponibilidad general para fechas específicas, pero el número de huéspedes excede la capacidad máxima de cualquier habitación individual.
+
+### CONTEXTO DISPONIBLE:
+- `numero_huespedes`: Número de huéspedes solicitado
+- `capacidad_maxima_individual`: Capacidad máxima de una sola habitación
+- `habitaciones_disponibles`: Lista de habitaciones disponibles
+- `combinaciones_posibles`: Combinaciones de habitaciones para alojar a todos
+- `fechas_consulta`: Fechas de la estadía
+
+### INSTRUCCIONES OBLIGATORIAS:
+
+1. **CONFIRMAR DISPONIBILIDAD POSITIVAMENTE**:
+   - Empezar con tono positivo ("¡Tenemos opciones para ustedes!")
+   - NO empezar con limitaciones
+
+2. **EXPLICAR LAS OPCIONES CLARAMENTE**:
+   - Opción múltiples habitaciones: Para alojar a todos
+   - Opción habitación individual: Para capacidad máxima
+
+3. **MOSTRAR COMBINACIONES ESPECÍFICAS**:
+   - Listar qué habitaciones específicas están disponibles
+   - Explicar cómo se distribuirían los huéspedes
+
+### RESPUESTA OBLIGATORIA:
+
+```
+¡Tenemos opciones disponibles para {numero_huespedes} personas del {fecha_inicio} al {fecha_fin}!
+
+Como nuestras habitaciones tienen capacidad máxima de {capacidad_maxima_individual} personas cada una, te ofrezco estas alternativas:
+
+🏠 **Para {numero_huespedes} personas - {calcular_habitaciones_necesarias} habitaciones:**
+{listar_combinaciones_especificas}
+
+🏠 **Para {capacidad_maxima_individual} personas - 1 habitación:**
+{listar_habitaciones_individuales_disponibles}
+
+¿Cuál opción te conviene más? ¡Te genero el enlace de reserva para lo que elijas!
+```
+
+### EJEMPLO PRÁCTICO:
+Si el usuario pregunta "tienen disponible del 13 al 17 de agosto para 4 personas":
+
+```
+¡Tenemos opciones disponibles para 4 personas del 13/08/2025 al 17/08/2025!
+
+Como nuestras habitaciones tienen capacidad máxima de 2 personas cada una, te ofrezco estas alternativas:
+
+🏠 **Para 4 personas - 2 habitaciones:**
+   • Suite Martina + Suite Bony (2 personas en cada una)
+   • Total: ARS $1.102.600,40 para toda la estadía
+
+🏠 **Para 2 personas - 1 habitación:**
+   • Suite Martina: ARS $551.300,20
+   • Suite Bony: ARS $551.300,20
+
+¿Cuál opción te conviene más? Si querés reservar múltiples habitaciones, simplemente decime "quiero reservar ambas" y te genero los enlaces inmediatamente! 🎉
+```
+
+### REGLAS CRÍTICAS:
+- ✅ SIEMPRE empezar con tono positivo y confirmando disponibilidad
+- ✅ EXPLICAR claramente por qué se necesitan múltiples habitaciones
+- ✅ MOSTRAR opciones tanto múltiples como individuales
+- ✅ INCLUIR precios si están disponibles en el contexto
+- ✅ Ofrecer generar enlace de reserva inmediatamente
+- ❌ NO empezar con "no tenemos" o "no se puede"
+- ❌ NO ser vago con las opciones - ser específico

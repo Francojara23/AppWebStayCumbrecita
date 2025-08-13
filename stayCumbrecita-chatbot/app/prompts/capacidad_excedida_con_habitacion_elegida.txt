@@ -1,0 +1,91 @@
+## CASO ESPECIAL: CAPACIDAD EXCEDIDA - CON HABITACIÓN YA ELEGIDA 🏨
+
+### SITUACIÓN:
+El usuario eligió una habitación específica en una consulta previa, pero ahora solicita más huéspedes de los que esa habitación puede alojar.
+
+### CONTEXTO DISPONIBLE:
+- `habitacion_elegida`: Habitación que el usuario seleccionó previamente
+- `capacidad_habitacion_elegida`: Capacidad máxima de la habitación elegida
+- `numero_huespedes`: Número de huéspedes solicitado
+- `habitaciones_disponibles`: Todas las habitaciones disponibles
+- `fechas_consulta`: Fechas de la estadía
+
+### INSTRUCCIONES OBLIGATORIAS:
+
+1. **RECONOCER LA ELECCIÓN PREVIA**:
+   - Mencionar que el usuario eligió una habitación específica
+   - Explicar la capacidad de esa habitación
+
+2. **OFRECER SOLUCIONES CONSTRUCTIVAS**:
+   - Opción 1: Combinar la habitación elegida + otra habitación
+   - Opción 2: Cambiar a habitaciones diferentes que acomoden a todos
+
+3. **MANTENER TONO POSITIVO Y SOLUTIVO**:
+   - NO rechazar directamente
+   - Ofrecer alternativas inmediatamente
+
+### RESPUESTA OBLIGATORIA:
+
+**SI SOLO HAY UNA COMBINACIÓN POSIBLE (2 habitaciones disponibles):**
+```
+¡Perfecto! Veo que elegiste la **{habitacion_elegida}** que tiene capacidad para {capacidad_habitacion_elegida} personas, pero necesitas alojar a {numero_huespedes} personas.
+
+¡No hay problema! Para {numero_huespedes} personas, necesitas reservar:
+• **{habitacion_elegida}** (para {capacidad_habitacion_elegida} personas)  
+• **{otra_habitacion_disponible}** (para {capacidad_restante} personas)
+
+¿Quieres reservar ambas habitaciones? Si me dices "quiero reservar ambas", te genero el enlace inmediatamente.
+```
+
+**SI HAY MÚLTIPLES COMBINACIONES POSIBLES (3+ habitaciones disponibles):**
+```
+¡Perfecto! Veo que elegiste la **{habitacion_elegida}** que tiene capacidad para {capacidad_habitacion_elegida} personas, pero necesitas alojar a {numero_huespedes} personas.
+
+¡No hay problema! Te ofrezco estas opciones:
+
+🏠 **Opción 1 - Mantener tu elección + agregar otra:**
+   • **{habitacion_elegida}** + **{habitacion_opcion_1}**
+
+🏠 **Opción 2 - Combinación alternativa:**  
+   • **{habitacion_opcion_2}** + **{habitacion_opcion_3}**
+
+¿Cuál opción prefieres? ¡Te genero el enlace de reserva inmediatamente!
+```
+
+### EJEMPLO PRÁCTICO:
+Si el usuario dijo "quisiera reservar la suite bony" y después "para 4 personas":
+
+**Caso: Solo 2 habitaciones disponibles (Suite Bony + Suite Martina)**
+```
+¡Perfecto! Veo que elegiste la **Suite Bony** que tiene capacidad para 2 personas, pero necesitas alojar a 4 personas.
+
+¡No hay problema! Para 4 personas, necesitas reservar:
+• **Suite Bony** (para 2 personas)  
+• **Suite Martina** (para 2 personas)
+
+¿Quieres reservar ambas habitaciones? Si me dices "quiero reservar ambas", te genero el enlace inmediatamente.
+```
+
+**Caso: 3+ habitaciones disponibles (múltiples combinaciones)**
+```
+¡Perfecto! Veo que elegiste la **Suite Bony** que tiene capacidad para 2 personas, pero necesitas alojar a 4 personas.
+
+¡No hay problema! Te ofrezco estas opciones:
+
+🏠 **Opción 1 - Mantener tu elección + agregar otra:**
+   • **Suite Bony** + **Suite Martina**
+
+🏠 **Opción 2 - Combinación alternativa:**  
+   • **Suite Taina** + **Suite Martina**
+
+¿Cuál opción prefieres? ¡Te genero el enlace de reserva inmediatamente!
+```
+
+### REGLAS CRÍTICAS:
+- ✅ SIEMPRE reconocer la habitación previamente elegida
+- ✅ OFRECER la habitación elegida como parte de la solución
+- ✅ Proponer combinaciones que incluyan la habitación elegida
+- ✅ Mantener tono positivo y solutivo
+- ✅ Ofrecer generar enlace inmediatamente
+- ❌ NO decir "no se puede" o "no está disponible"
+- ❌ NO ignorar la elección previa del usuario

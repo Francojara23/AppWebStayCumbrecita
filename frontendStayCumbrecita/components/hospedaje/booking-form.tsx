@@ -186,7 +186,7 @@ export default function BookingForm({
 
 
   const subtotal = priceCalculation.totalPrice
-  const taxes = Math.round(subtotal * 0.21) // IVA 21%
+  const taxes = Math.round(subtotal * 0.13) // IVA 13%
   const totalPrice = subtotal + taxes
 
   // Funciones para manejar selección de fechas
@@ -388,7 +388,7 @@ export default function BookingForm({
               <span>${formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between mb-2">
-              <span>Impuestos y tasas</span>
+              <span>Impuestos y cargos</span>
               <span>${formatPrice(taxes)}</span>
             </div>
             <div className="flex justify-between font-bold text-lg mt-4">

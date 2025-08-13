@@ -227,7 +227,7 @@ export default function CheckoutPage() {
       })
       
       const subtotalCalculado = subtotalConAjustes
-      const impuestosCalculados = Math.round(subtotalCalculado * 0.21) // IVA 21%
+      const impuestosCalculados = Math.round(subtotalCalculado * 0.13) // IVA 13%
       const totalCalculado = subtotalCalculado + impuestosCalculados
       const precioPorNocheCalculado = Math.round(subtotalCalculado / nochesCalculadas)
 

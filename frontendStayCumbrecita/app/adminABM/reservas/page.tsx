@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import DeleteConfirmationDialog from "@/components/delete-confirmation-dialog"
+
 import ReservationCalendarView from "@/components/adminABM/reservation-calendar-view"
 import { getReservationsForAdmin, type GetReservationsResponse } from "@/app/actions/reservations/getReservations"
 import { cancelReservation } from "@/app/actions/reservations/cancelReservation"
@@ -45,8 +45,7 @@ export default function ReservasPage() {
   const [showCanceled, setShowCanceled] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<any>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [reservationToDelete, setReservationToDelete] = useState<string | null>(null)
+
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list")
@@ -171,19 +170,7 @@ export default function ReservasPage() {
     setIsDetailOpen(true)
   }
 
-  const handleDeleteClick = (reservationId: string) => {
-    setReservationToDelete(reservationId)
-    setIsDeleteDialogOpen(true)
-  }
 
-  const handleConfirmDelete = () => {
-    // Here you would implement the actual delete logic
-    console.log(`Deleting reservation: ${reservationToDelete}`)
-    setIsDeleteDialogOpen(false)
-    setReservationToDelete(null)
-    // In a real app, you would remove the item from the database
-    // and then refresh the list
-  }
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -499,10 +486,7 @@ export default function ReservasPage() {
                                 <X className="h-4 w-4" />
                               </Button>
                             )}
-                            
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(reservation.id)}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
+
                           </div>
                         </TableCell>
                       </TableRow>
@@ -836,14 +820,7 @@ export default function ReservasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <DeleteConfirmationDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleConfirmDelete}
-        title="Eliminar Reserva"
-        description="¿Estás seguro de que deseas eliminar esta reserva? Esta acción no se puede deshacer."
-      />
+
     </div>
   )
 }

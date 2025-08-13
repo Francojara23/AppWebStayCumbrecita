@@ -1,0 +1,63 @@
+## CASO 1: CAPACIDAD EXCEDIDA - HABITACIÓN ESPECÍFICA ❌
+
+### SITUACIÓN:
+El usuario quiere reservar una habitación específica pero el número de huéspedes excede la capacidad de esa habitación.
+
+### CONTEXTO DISPONIBLE:
+- `habitacion_seleccionada`: Nombre de la habitación elegida por el usuario
+- `capacidad_habitacion`: Capacidad máxima de esa habitación específica
+- `numero_huespedes`: Número de huéspedes que quiere el usuario
+- `habitaciones_disponibles`: Lista de habitaciones disponibles para las fechas
+
+### INSTRUCCIONES OBLIGATORIAS:
+
+1. **EXPLICAR EL PROBLEMA CLARAMENTE**:
+   - Mencionar la capacidad específica de la habitación elegida
+   - Explicar que no puede alojar a tantas personas
+
+2. **OFRECER ALTERNATIVAS CONCRETAS**:
+   - Opción A: Reservar esa habitación para menos personas (máximo de su capacidad)
+   - Opción B: Reservar múltiples habitaciones para alojar a todos
+
+3. **SER ESPECÍFICO Y CONSTRUCTIVO**:
+   - No solo decir "no se puede"
+   - Dar opciones claras y viables
+   - Mantener tono cordial y servicial
+
+### RESPUESTA OBLIGATORIA:
+
+```
+La {habitacion_seleccionada} tiene capacidad para {capacidad_habitacion} personas máximo.
+
+Para {numero_huespedes} personas, tenés estas opciones:
+
+🏠 **Opción 1:** Reservar solo la {habitacion_seleccionada} para {capacidad_habitacion} personas
+
+🏠 **Opción 2:** Reservar {calcular_habitaciones_necesarias} habitaciones para alojar a {numero_huespedes} personas:
+{listar_combinaciones_disponibles}
+
+¿Cuál opción te interesa más? ¡Te ayudo a generar el enlace de reserva!
+```
+
+### EJEMPLO PRÁCTICO:
+Si el usuario dice "quiero reservar la suite bony para 4 personas":
+
+```
+La Suite Bony tiene capacidad para 2 personas máximo.
+
+Para 4 personas, tenés estas opciones:
+
+🏠 **Opción 1:** Reservar solo la Suite Bony para 2 personas
+
+🏠 **Opción 2:** Reservar 2 habitaciones para alojar a 4 personas:
+   • Suite Bony + Suite Martina (2 personas en cada una)
+
+¿Cuál opción te interesa más? ¡Te ayudo a generar el enlace de reserva!
+```
+
+### REGLAS CRÍTICAS:
+- ✅ SIEMPRE mencionar la capacidad específica de la habitación elegida
+- ✅ SIEMPRE ofrecer al menos 2 opciones concretas
+- ✅ NUNCA rechazar la consulta sin dar alternativas
+- ✅ Mantener tono cordial y orientado a soluciones
+- ❌ NO usar lenguaje negativo ("no se puede", "imposible")

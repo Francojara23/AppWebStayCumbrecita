@@ -171,6 +171,48 @@ class QueryClassifier:
                 r"continuar.*reserva|seguir.*reserva|proceder.*con.*reserva",
                 r"confirmar.*reserva|asegurar.*reserva|apartar.*habitación|apartar.*suite"
             ],
+            "capacidad_excedida_especifica": [
+                # Patrones para cuando usuario menciona habitación específica con exceso de capacidad
+                r"suite.*taina.*para.*\d+.*personas?",
+                r"suite.*martina.*para.*\d+.*personas?", 
+                r"suite.*bony.*para.*\d+.*personas?",
+                r"habitación.*\w+.*para.*\d+.*personas?",
+                r"reservar.*la.*suite.*\w+.*para.*\d+",
+                r"quiero.*la.*\w+.*para.*\d+.*personas?",
+                r"me.*interesa.*la.*\w+.*para.*\d+.*personas?"
+            ],
+            "capacidad_excedida_general": [
+                # Patrones para consultas generales que exceden capacidad
+                r"para.*\d+.*personas?.*disponible",
+                r"disponible.*para.*\d+.*personas?",
+                r"somos.*\d+.*personas?.*disponible",
+                r"grupo.*de.*\d+.*personas?.*lugar",
+                r"familia.*de.*\d+.*disponibilidad",
+                r"\d+.*huéspedes?.*disponible",
+                r"lugar.*para.*\d+.*personas?",
+                r"habitación.*para.*\d+.*personas?.*disponible"
+            ],
+            "reserva_multiple": [
+                # Patrones para cuando usuario quiere reservar múltiples habitaciones
+                r"reservar.*ambas?.*habitaciones?",
+                r"reservar.*las.*dos.*habitaciones?",
+                r"quiero.*reservar.*ambas?",
+                r"puedo.*reservar.*ambas?",
+                r"reservar.*\d+.*habitaciones?",
+                r"quiero.*las.*dos.*habitaciones?",
+                r"me.*quedo.*con.*ambas?",
+                r"tomar.*ambas?.*habitaciones?",
+                r"apartar.*ambas?.*habitaciones?",
+                r"ambas?.*quisiera.*reservar",
+                r"ambas?.*quiero.*reservar", 
+                r"las.*dos.*quisiera.*reservar",
+                r"ambas?.*me.*interesa",
+                r"reservar.*dos.*habitaciones?",
+                r"confirmar.*ambas?.*habitaciones?",
+                r"proceder.*con.*ambas?",
+                r"generar.*enlace.*para.*ambas?",
+                r"continuar.*con.*ambas?.*habitaciones?"
+            ],
             "servicios": [
                 r"servicio|servicios|incluye|incluido|ofrece|ofrecen",
                 r"limpieza|toallas|sabanas|amenities",

@@ -276,5 +276,153 @@ class BackendService:
             logger.error(f"Error verificando disponibilidad: {e}")
             return None
 
+    # ========== GENERACIÓN DE URLs DE RESERVA ==========
+    
+    async def generar_url_reserva_multiple(
+        self, 
+        hospedaje_id: str, 
+        habitacion_ids: List[str],
+        fecha_inicio: str,
+        fecha_fin: str, 
+        huespedes: int
+    ) -> str:
+        """Generar URL de checkout para múltiples habitaciones"""
+        try:
+            from urllib.parse import urlencode
+            
+            # Unir IDs de habitaciones con comas
+            habitacion_ids_str = ",".join(habitacion_ids)
+            
+            # Parámetros de la URL
+            params = {
+                "hospedajeId": hospedaje_id,
+                "habitacionIds": habitacion_ids_str,
+                "fechaInicio": fecha_inicio,
+                "fechaFin": fecha_fin,
+                "huespedes": str(huespedes)
+            }
+            
+            # Construir URL
+            frontend_url = settings.frontend_url
+            query_string = urlencode(params)
+            checkout_url = f"{frontend_url}/checkout?{query_string}"
+            # Reducir ruido: no loguear la URL completa para evitar duplicados visibles
+            logger.info(f"🏠 URL MÚLTIPLE GENERADA - {len(habitacion_ids)} habitaciones")
+            return checkout_url
+            
+        except Exception as e:
+            logger.error(f"Error generando URL múltiple: {e}")
+            return f"{settings.frontend_url}/checkout"
+    
+    async def generar_url_reserva_simple(
+        self, 
+        hospedaje_id: str, 
+        habitacion_id: str,
+        fecha_inicio: str,
+        fecha_fin: str, 
+        huespedes: int
+    ) -> str:
+        """Generar URL de checkout para una sola habitación"""
+        try:
+            from urllib.parse import urlencode
+            
+            # Parámetros de la URL
+            params = {
+                "hospedajeId": hospedaje_id,
+                "habitacionIds": habitacion_id,  # Una sola habitación
+                "fechaInicio": fecha_inicio,
+                "fechaFin": fecha_fin,
+                "huespedes": str(huespedes)
+            }
+            
+            # Construir URL
+            frontend_url = settings.frontend_url
+            query_string = urlencode(params)
+            checkout_url = f"{frontend_url}/checkout?{query_string}"
+            # Reducir ruido: no loguear la URL completa para evitar duplicados visibles
+            logger.info("🏠 URL SIMPLE GENERADA - 1 habitación")
+            return checkout_url
+            
+        except Exception as e:
+            logger.error(f"Error generando URL simple: {e}")
+            return f"{settings.frontend_url}/checkout"
+    
+    def calcular_habitaciones_necesarias(
+        self, 
+        huespedes: int, 
+        habitaciones_disponibles: List[Dict]
+    ) -> Dict[str, Any]:
+        """Calcular combinaciones posibles de habitaciones para un número de huéspedes"""
+        try:
+            if not habitaciones_disponibles:
+                return {"error": "No hay habitaciones disponibles"}
+            
+            # Capacidad máxima individual
+            capacidad_maxima = max(hab.get("capacidad", 2) for hab in habitaciones_disponibles)
+            
+            # Habitaciones necesarias (división hacia arriba)
+            habitaciones_necesarias = (huespedes + capacidad_maxima - 1) // capacidad_maxima
+            
+            # Generar combinaciones
+            combinaciones = self._generar_combinaciones_detalladas(habitaciones_disponibles, huespedes)
+            
+            return {
+                "habitaciones_necesarias": habitaciones_necesarias,
+                "capacidad_maxima_individual": capacidad_maxima,
+                "combinaciones_posibles": combinaciones,
+                "puede_alojar_todos": any(combo["capacidad_total"] >= huespedes for combo in combinaciones)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculando habitaciones necesarias: {e}")
+            return {"error": str(e)}
+    
+    def _generar_combinaciones_detalladas(self, habitaciones: List[Dict], huespedes: int) -> List[Dict]:
+        """Genera combinaciones detalladas de habitaciones"""
+        from itertools import combinations
+        
+        combinaciones_validas = []
+        
+        # Intentar con 1 habitación (si alguna tiene capacidad suficiente)
+        for habitacion in habitaciones:
+            if habitacion.get("capacidad", 2) >= huespedes:
+                combinaciones_validas.append({
+                    "numero_habitaciones": 1,
+                    "habitaciones": [habitacion.get("nombre")],
+                    "ids": [habitacion.get("id")],
+                    "capacidad_total": habitacion.get("capacidad", 2),
+                    "tipo": "individual",
+                    "descripcion": f"{habitacion.get('nombre')} (capacidad: {habitacion.get('capacidad', 2)} personas)"
+                })
+        
+        # Intentar con 2 habitaciones
+        if len(habitaciones) >= 2:
+            for combo in combinations(habitaciones, 2):
+                capacidad_total = sum(hab.get("capacidad", 2) for hab in combo)
+                if capacidad_total >= huespedes:
+                    combinaciones_validas.append({
+                        "numero_habitaciones": 2,
+                        "habitaciones": [hab.get("nombre") for hab in combo],
+                        "ids": [hab.get("id") for hab in combo],
+                        "capacidad_total": capacidad_total,
+                        "tipo": "doble",
+                        "descripcion": f"{combo[0].get('nombre')} + {combo[1].get('nombre')} (capacidad total: {capacidad_total} personas)"
+                    })
+        
+        # Si no hay combinaciones válidas, intentar con todas las habitaciones
+        if not combinaciones_validas and len(habitaciones) >= 3:
+            capacidad_total = sum(hab.get("capacidad", 2) for hab in habitaciones)
+            if capacidad_total >= huespedes:
+                combinaciones_validas.append({
+                    "numero_habitaciones": len(habitaciones),
+                    "habitaciones": [hab.get("nombre") for hab in habitaciones],
+                    "ids": [hab.get("id") for hab in habitaciones],
+                    "capacidad_total": capacidad_total,
+                    "tipo": "multiple",
+                    "descripcion": f"Todas las habitaciones disponibles (capacidad total: {capacidad_total} personas)"
+                })
+        
+        return combinaciones_validas
+
 # Instancia global del servicio
 backend_service = BackendService() 

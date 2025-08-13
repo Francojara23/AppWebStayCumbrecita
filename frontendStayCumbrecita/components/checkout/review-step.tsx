@@ -254,7 +254,7 @@ export default function ReviewStep({ onNext, onPrev, isLoading = false }: Review
                 <span>${reservation.price.total.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span>Impuestos y tasas</span>
+                <span>Impuestos y cargos</span>
                 <span>${reservation.price.taxes.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>

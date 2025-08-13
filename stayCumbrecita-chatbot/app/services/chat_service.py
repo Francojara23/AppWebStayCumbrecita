@@ -1,7 +1,8 @@
 import logging
 import uuid
+import re
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from openai import AsyncOpenAI
 from ..core.config import settings
 from ..models.chat import ChatRequest, ChatResponse, ChatHistoryResponse, ChatMessage
@@ -22,6 +23,21 @@ class ChatService:
         self.knowledge_service = KnowledgeService()
         self.query_classifier = QueryClassifier()
         self.date_extractor = DateExtractor()
+        # Patrones simples para detectar confirmación explícita de reserva múltiple
+        self._multi_reservation_patterns = [
+            r"\bquiero\s+reservar\s+ambas\b",
+            r"\breservar\s+ambas\b",
+            r"\bme\s+quedo\s+con\s+ambas\b",
+            r"\bcontinuar\s+con\s+ambas\b",
+            r"\blas\s+dos\s+habitaciones\b",
+            r"\breservar\s+las\s+dos\b",
+            r"\breservar\s+\d+\s+habitaciones\b",
+            r"\bconfirmo\s+ambas\b",
+            r"\bsí\s*,?\s*ambas\b",
+            r"\bsi\s*,?\s*ambas\b",
+        ]
+        # Idempotencia de corta ventana: recuerda último mensaje por conversación
+        self._last_requests: Dict[str, Dict[str, Any]] = {}
         
     async def process_message(
         self, 
@@ -66,8 +82,8 @@ class ChatService:
                     context_used=False
                 )
             
-            # 🆕 Guardar mensaje del usuario solo si save_to_history es True
-            if save_to_history:
+            # 🆕 Guardar mensaje del usuario solo si save_to_history es True y no es anónimo
+            if save_to_history and not self._is_anonymous_user(user_id):
                 try:
                     await self._save_message(
                         hospedaje_id, user_id, conversation_id, message, "user"
@@ -75,6 +91,24 @@ class ChatService:
                 except Exception as e:
                     logger.warning(f"Error guardando mensaje del usuario: {e}")
             
+            # 🧯 IDEMPOTENCIA (ventana 2s): evitar reprocesar el mismo mensaje
+            normalized_message = (message or "").strip().lower()
+            idempotency_key = f"{conversation_id}:{normalized_message}"
+            now_ms = int(time.time() * 1000)
+            last = self._last_requests.get(conversation_id)
+            if last and last.get("key") == idempotency_key and (now_ms - last.get("ts", 0)) < 2000:
+                logger.info("🧯 IDEMPOTENCIA - Reutilizando respuesta reciente (ventana 2s)")
+                cached = last.get("response_text") or "Lo siento, no puedo procesar tu consulta en este momento."
+                response_time = time.time() - start_time
+                return ChatResponse(
+                    response=cached,
+                    session_id=session_id,
+                    hospedaje_id=hospedaje_id,
+                    query_type=last.get("query_type", "general"),
+                    response_time=response_time,
+                    context_used=context is not None
+                )
+
             # 🆕 PASO 1: Obtener contexto básico para clasificación
             basic_context = await self._get_basic_context_for_classification(
                 hospedaje_id, user_id, conversation_id, message, context
@@ -82,19 +116,42 @@ class ChatService:
             
             # Clasificar la consulta CON contexto básico
             query_type = await self.query_classifier.classify_query(message, basic_context)
+
+            # 🧭 OVERRIDE DIRECTO: si el usuario confirma explícitamente reservar múltiples habitaciones
+            if self._is_multi_reservation_confirm(message):
+                logger.info("🧭 OVERRIDE DIRECTO - Confirmación de reserva múltiple detectada → query_type='reserva_multiple'")
+                query_type = "reserva_multiple"
             
             # 🆕 PASO 2: Obtener contexto completo basado en el tipo de consulta
             full_context = await self._get_relevant_context(
                 hospedaje_id, message, query_type, user_id, conversation_id, context, basic_context
             )
             
+            # 🔄 APLICAR QUERY TYPE OVERRIDE si existe (desde proceso_reserva con capacidad excedida)
+            # IMPORTANTE: Aplicar ANTES del análisis de capacidad para evitar conflictos
+            if full_context.get("query_type_override"):
+                original_query_type = query_type
+                query_type = full_context["query_type_override"]
+                logger.info(f"🔄 OVERRIDE APLICADO TEMPRANO - Cambiando query_type de '{original_query_type}' a '{query_type}'")
+                # Limpiar el contexto de proceso_reserva para evitar conflictos
+                if "proceso_reserva_caso" in full_context:
+                    logger.info(f"🧹 LIMPIANDO contexto proceso_reserva para evitar conflictos con override")
+                    del full_context["proceso_reserva_caso"]
+            
+            # 🔍 PASO 3: DETECTAR Y MANEJAR CAPACIDAD EXCEDIDA
+            capacity_analysis = await self._analyze_capacity_requirements(message, full_context, query_type)
+            if capacity_analysis.get("capacity_exceeded"):
+                logger.info(f"🚨 CAPACIDAD EXCEDIDA DETECTADA - Redirigiendo a manejo especial")
+                query_type = capacity_analysis["new_query_type"]
+                full_context.update(capacity_analysis["enhanced_context"])
+            
             # Generar respuesta basada en el tipo de consulta
             response_text = await self._generate_response(
                 hospedaje_id, user_id, message, query_type, config, conversation_id, full_context
             )
             
-            # 🆕 Guardar respuesta del bot solo si save_to_history es True
-            if save_to_history:
+            # 🆕 Guardar respuesta del bot solo si save_to_history es True y no es anónimo
+            if save_to_history and not self._is_anonymous_user(user_id):
                 try:
                     await self._save_message(
                         hospedaje_id, user_id, conversation_id, response_text, "assistant"
@@ -109,6 +166,17 @@ class ChatService:
                 except Exception as e:
                     logger.warning(f"Error guardando respuesta del bot: {e}")
             
+            # Guardar huella para idempotencia
+            try:
+                self._last_requests[conversation_id] = {
+                    "key": idempotency_key,
+                    "ts": int(time.time() * 1000),
+                    "response_text": response_text,
+                    "query_type": query_type,
+                }
+            except Exception:
+                pass
+
             response_time = time.time() - start_time
             return ChatResponse(
                 response=response_text,
@@ -131,6 +199,24 @@ class ChatService:
                 context_used=False
             )
     
+    def _is_multi_reservation_confirm(self, message: str) -> bool:
+        """Detecta frases de confirmación de reserva múltiple sin depender del clasificador.
+
+        Ejemplos: "quiero reservar ambas", "reservar las dos", "me quedo con ambas",
+        "reservar 2 habitaciones", "continuar con ambas", "sí, ambas".
+        """
+        try:
+            msg = (message or "").strip().lower()
+            if not msg:
+                return False
+            for pattern in self._multi_reservation_patterns:
+                if re.search(pattern, msg):
+                    return True
+            return False
+        except Exception as e:
+            logger.warning(f"DEBUG _is_multi_reservation_confirm - error evaluando patrón: {e}")
+            return False
+
     async def _generate_response(
         self, 
         hospedaje_id: str, 
@@ -143,6 +229,19 @@ class ChatService:
     ) -> str:
         """Genera la respuesta del chatbot"""
         try:
+            # Helper local para redactar URLs de checkout en logs y evitar duplicados visibles
+            def _redact_checkout_urls(text: str) -> str:
+                try:
+                    return re.sub(r"https?://[^\s)\"]*checkout[^\s)\"]*", "[REDACTED_CHECKOUT_URL]", text or "")
+                except Exception:
+                    return text
+
+            # 🎯 SHORT-CIRCUIT: si algún handler ya generó una respuesta concreta (ej. reserva múltiple), usarla
+            prebuilt_response = context.get("response_text")
+            if prebuilt_response:
+                logger.info("🎯 SHORT-CIRCUIT - Usando response_text preconstruido desde el handler")
+                return prebuilt_response
+
             # 🔧 Ya no necesitamos obtener contexto - viene como parámetro
             # Construir prompt directamente
             prompt = await self._build_prompt(message, context, query_type, config)
@@ -158,11 +257,11 @@ class ChatService:
             logger.info("-" * 40)
             logger.info("📋 SYSTEM PROMPT:")
             logger.info("-" * 40)
-            logger.info(prompt["system"])
+            logger.info(_redact_checkout_urls(prompt["system"]))
             logger.info("-" * 40)
             logger.info("👤 USER MESSAGE:")
             logger.info("-" * 40)
-            logger.info(prompt["user"])
+            logger.info(_redact_checkout_urls(prompt["user"]))
             logger.info("=" * 80)
             
             # Generar respuesta con OpenAI
@@ -598,15 +697,11 @@ class ChatService:
             habitaciones = await backend_service.get_habitaciones_hospedaje(hospedaje_id)
             context["habitaciones"] = [hab.dict() for hab in habitaciones]
             
-            # 4. CONSULTAR DISPONIBILIDAD REAL si hay fechas (SOLO si no hay disponibilidad previa)
+            # 4. CONSULTAR DISPONIBILIDAD REAL si hay fechas (SIEMPRE FRESCO - NO reutilizar cache)
             if query_params.get('has_dates') and habitaciones:
-                # 🔄 VERIFICAR si ya hay disponibilidad previa para las mismas fechas
-                if self._tiene_disponibilidad_previa_para_fechas(context, query_params):
-                    # Reutilizar disponibilidad previa del contexto
-                    self._usar_disponibilidad_previa(context)
-                else:
-                    # Consultar disponibilidad fresca del backend
-                    await self._add_availability_context(context, hospedaje_id, query_params, context["habitaciones"])
+                # 🔥 SIEMPRE consultar disponibilidad fresca del backend para datos actualizados
+                logger.info(f"🔥 DISPONIBILIDAD FRESCA - Forzando consulta al backend para fechas: {query_params}")
+                await self._add_availability_context(context, hospedaje_id, query_params, context["habitaciones"])
             
             # 5. CONSULTAR PRECIOS ESPECÍFICOS SOLO si la consulta es de tipo "precios"
             if query_type == "precios" and habitaciones:
@@ -645,6 +740,15 @@ class ChatService:
     ) -> Dict[str, str]:
         """Construye el prompt para OpenAI"""
         try:
+            # 🔍 DEBUG: Log del query_type recibido
+            logger.info(f"🔍 DEBUG _build_prompt - query_type recibido: '{query_type}'")
+            logger.info(f"🔍 DEBUG _build_prompt - context keys: {list(context.keys())}")
+            if "query_type_override" in context:
+                logger.info(f"🔍 DEBUG _build_prompt - query_type_override en context: '{context['query_type_override']}'")
+            if "proceso_reserva_caso" in context:
+                logger.info(f"🔍 DEBUG _build_prompt - proceso_reserva_caso en context: '{context['proceso_reserva_caso']}'")
+                
+            prompt_file_used = None  # Para trackear qué archivo se usa
             # MANEJO ESPECIAL: FECHA PASADA (máxima prioridad)
             if "error_fecha_pasada" in context:
                 with open("app/prompts/error_fecha_pasada.txt", "r", encoding="utf-8") as f:
@@ -674,30 +778,39 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
             if query_type == "proceso_reserva":
                 caso_especifico = context.get("proceso_reserva_caso", "caso6")  # Fallback a caso6
                 rules_file = f"app/prompts/proceso_reserva_{caso_especifico}.txt"
+                prompt_file_used = rules_file
                 logger.info(f"🎯 PROCESO_RESERVA - Usando archivo específico: {rules_file}")
+                logger.info(f"🔍 DEBUG - Entrando a rama PROCESO_RESERVA con caso: {caso_especifico}")
                 try:
                     with open(rules_file, "r", encoding="utf-8") as f:
                         specific_rules = f.read()
                     system_prompt += f"\n\n{specific_rules}"
+                    logger.info(f"✅ DEBUG - Archivo {rules_file} cargado exitosamente")
                 except FileNotFoundError:
                     logger.error(f"🎯 PROCESO_RESERVA - Archivo {rules_file} no encontrado, usando caso6")
                     try:
                         with open("app/prompts/proceso_reserva_caso6.txt", "r", encoding="utf-8") as f:
                             specific_rules = f.read()
                         system_prompt += f"\n\n{specific_rules}"
+                        prompt_file_used = "app/prompts/proceso_reserva_caso6.txt"
                     except FileNotFoundError:
                         logger.error("🎯 PROCESO_RESERVA - Ni siquiera caso6 existe, usando fallback")
                         with open("app/prompts/fallback.txt", "r", encoding="utf-8") as f:
                             fallback_rules = f.read()
                         system_prompt += f"\n\n{fallback_rules}"
+                        prompt_file_used = "app/prompts/fallback.txt"
             else:
                 # LÓGICA NORMAL PARA OTROS TIPOS DE CONSULTA
+                logger.info(f"🔍 DEBUG - Entrando a rama ELSE (NO proceso_reserva) con query_type: '{query_type}'")
                 rules_file = f"app/prompts/{query_type}_rules.txt"
                 try:
                     with open(rules_file, "r", encoding="utf-8") as f:
                         specific_rules = f.read()
                     system_prompt += f"\n\n{specific_rules}"
+                    prompt_file_used = rules_file
+                    logger.info(f"✅ DEBUG - Archivo directo {rules_file} cargado exitosamente")
                 except FileNotFoundError:
+                    logger.info(f"🔍 DEBUG - Archivo directo {rules_file} no encontrado, buscando en mapping")
                     # Mapear tipos de consulta específicos a archivos de reglas
                     rules_mapping = {
                         "disponibilidad": "availability_rules.txt",
@@ -706,26 +819,36 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                         "habitacion_servicios": "habitacion_services_rules.txt",
                         "servicio_especifico": "servicio_especifico_rules.txt",
                         "metodos_pago": "metodos_pago_rules.txt",
-                        "servicios_multiples_habitaciones": "servicios_multiples_habitaciones_rules.txt"
+                        "servicios_multiples_habitaciones": "servicios_multiples_habitaciones_rules.txt",
+                        "capacidad_excedida_especifica": "capacidad_excedida_caso1.txt",
+                        "capacidad_excedida_general": "capacidad_excedida_caso2.txt",
+                        "capacidad_excedida_con_habitacion": "capacidad_excedida_con_habitacion_elegida.txt"
                         # proceso_reserva NO en mapping - tiene lógica específica completa arriba
                     }
                 
                 mapped_file = rules_mapping.get(query_type)
+                logger.info(f"🔍 DEBUG - Mapping lookup para '{query_type}': {mapped_file}")
                 if mapped_file:
                     try:
                         with open(f"app/prompts/{mapped_file}", "r", encoding="utf-8") as f:
                             specific_rules = f.read()
                         system_prompt += f"\n\n{specific_rules}"
+                        prompt_file_used = f"app/prompts/{mapped_file}"
+                        logger.info(f"✅ DEBUG - Archivo mapeado {mapped_file} cargado exitosamente")
                     except FileNotFoundError:
+                        logger.error(f"❌ DEBUG - Archivo mapeado {mapped_file} no encontrado, usando fallback")
                         # Si tampoco existe el archivo mapeado, usar fallback
                         with open("app/prompts/fallback.txt", "r", encoding="utf-8") as f:
                             fallback_rules = f.read()
                         system_prompt += f"\n\n{fallback_rules}"
+                        prompt_file_used = "app/prompts/fallback.txt"
                 else:
+                    logger.info(f"🔍 DEBUG - No hay mapping para '{query_type}', usando fallback")
                     # Si no hay reglas específicas ni mapeo, usar fallback
                     with open("app/prompts/fallback.txt", "r", encoding="utf-8") as f:
                         fallback_rules = f.read()
                     system_prompt += f"\n\n{fallback_rules}"
+                    prompt_file_used = "app/prompts/fallback.txt"
             
             # Agregar reglas de fusión de datos si hay múltiples fuentes
             sources_summary = context.get("sources_summary", {})
@@ -817,7 +940,10 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                         "habitacion_servicios": "habitacion_services_rules.txt",
                         "servicio_especifico": "servicio_especifico_rules.txt",
                         "metodos_pago": "metodos_pago_rules.txt",
-                        "servicios_multiples_habitaciones": "servicios_multiples_habitaciones_rules.txt"
+                        "servicios_multiples_habitaciones": "servicios_multiples_habitaciones_rules.txt",
+                        "capacidad_excedida_especifica": "capacidad_excedida_caso1.txt",
+                        "capacidad_excedida_general": "capacidad_excedida_caso2.txt",
+                        "capacidad_excedida_con_habitacion": "capacidad_excedida_con_habitacion_elegida.txt"
                     }
                     
                     mapped_file = rules_mapping.get(query_type)
@@ -847,6 +973,10 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
             # Agregar contexto
             context_str = self._format_context(context)
             system_prompt += f"\n\nCONTEXTO DISPONIBLE:\n{context_str}"
+            
+            # 🔍 DEBUG FINAL: Confirmar qué archivo se usó
+            logger.info(f"🎯 DEBUG FINAL - Prompt construido usando archivo: {prompt_file_used}")
+            logger.info(f"🎯 DEBUG FINAL - query_type final: '{query_type}'")
             
             return {
                 "system": system_prompt,
@@ -1385,8 +1515,29 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
             logger.info(f"🔧 DEBUG PRECIOS - single_date: {single_date}")
             logger.info(f"🔧 DEBUG PRECIOS - inferred_from_session: {inferred_from_session}")
             
-            # Consultar precios para cada habitación
-            for hab in habitaciones:
+            # 🔧 FILTRAR HABITACIONES: Solo obtener precios de habitaciones disponibles
+            habitaciones_para_precios = habitaciones
+            
+            # Si hay información de disponibilidad en el contexto, usar solo las disponibles
+            if "availability_real" in context:
+                availability_data = context["availability_real"]
+                hospedaje_disp = availability_data.get("hospedaje_disponibilidad", {})
+                detalle_habitaciones = hospedaje_disp.get("detalle_habitaciones", [])
+                
+                if detalle_habitaciones and hospedaje_disp.get("disponible", False):
+                    # Extraer IDs de habitaciones disponibles
+                    habitaciones_disponibles_ids = [hab.get("id") for hab in detalle_habitaciones]
+                    # Filtrar la lista de habitaciones
+                    habitaciones_para_precios = [
+                        hab for hab in habitaciones 
+                        if hab.get("id") in habitaciones_disponibles_ids
+                    ]
+                    logger.info(f"🔧 DEBUG PRECIOS - Filtrando por disponibilidad: {len(habitaciones_para_precios)} de {len(habitaciones)} habitaciones")
+                    for hab in habitaciones_para_precios:
+                        logger.info(f"🔧 DEBUG PRECIOS - Habitación filtrada: {hab.get('nombre')} (ID: {hab.get('id')})")
+            
+            # Consultar precios para cada habitación disponible
+            for hab in habitaciones_para_precios:
                 hab_id = hab.get("id")
                 hab_nombre = hab.get("nombre", hab_id)
                 
@@ -1847,6 +1998,11 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                 await self._handle_proceso_reserva(context, hospedaje_id, message)
                 return
             
+            # 🆕 Para reservas múltiples cuando usuario quiere reservar varias habitaciones
+            elif query_type == "reserva_multiple":
+                await self._handle_reserva_multiple(context, hospedaje_id, message)
+                return
+            
             # Para consultas de servicios del hospedaje
             elif query_type == "hospedaje_servicios":
                 logger.info(f"🔧 DEBUG - Obteniendo servicios del hospedaje")
@@ -2181,6 +2337,9 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                         r"prefiero\s+la\s+(suite\s+\w+|habitación\s+\w+)",
                         r"me\s+quedo\s+con\s+la\s+(suite\s+\w+|habitación\s+\w+)",
                         r"(suite\s+\w+|habitación\s+\w+)\s+por\s+favor",
+                        r"reservar\s+la\s+(suite\s+\w+|habitación\s+\w+)",
+                        r"quisiera\s+reservar\s+la\s+(suite\s+\w+|habitación\s+\w+)",
+                        r"quiero\s+reservar\s+la\s+(suite\s+\w+|habitación\s+\w+)",
                         r"esa\s+suite|esta\s+suite|la\s+suite",
                         r"esa\s+habitación|esta\s+habitación|la\s+habitación"
                     ]
@@ -2209,10 +2368,24 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                                         logger.info(f"✅ DEBUG IDENTIFICACIÓN - Habitación identificada por referencia contextual: {hab.get('nombre')}")
                                         return hab
             
-            # 1. Buscar en contexto del frontend
+            # 1. Buscar en contexto del frontend - PRIORIZAR MENSAJES DEL USUARIO
             frontend_conversation = context.get("frontend_conversation", {})
             if frontend_conversation:
                 recent_messages = frontend_conversation.get("recent_messages", [])
+                
+                # PRIMERO: Buscar en mensajes del USUARIO (mayor prioridad)
+                for msg in recent_messages:
+                    if msg.get("role") == "user":
+                        user_message = msg.get("message", "").lower()
+                        logger.info(f"🔍 DEBUG IDENTIFICACIÓN - Analizando mensaje del usuario: '{user_message[:50]}...'")
+                        # Buscar expresiones de interés del usuario
+                        for hab in habitaciones:
+                            hab_nombre = hab.get("nombre", "").lower()
+                            if hab_nombre and hab_nombre in user_message and ("interesa" in user_message or "quiero" in user_message or "elijo" in user_message or "reservar" in user_message or "quisiera" in user_message):
+                                logger.info(f"✅ DEBUG IDENTIFICACIÓN - Habitación identificada por ELECCIÓN DIRECTA del usuario: {hab.get('nombre')}")
+                                return hab
+                
+                # SEGUNDO: Si no se encontró en mensajes del usuario, buscar en respuestas del bot
                 for msg in recent_messages:
                     if msg.get("role") == "assistant":
                         bot_response = msg.get("message", "").lower()
@@ -2220,15 +2393,7 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                         for hab in habitaciones:
                             hab_nombre = hab.get("nombre", "").lower()
                             if hab_nombre and hab_nombre in bot_response:
-                                logger.info(f"🔍 DEBUG - Habitación identificada del frontend: {hab.get('nombre')}")
-                                return hab
-                    elif msg.get("role") == "user":
-                        user_message = msg.get("message", "").lower()
-                        # Buscar expresiones de interés del usuario
-                        for hab in habitaciones:
-                            hab_nombre = hab.get("nombre", "").lower()
-                            if hab_nombre and hab_nombre in user_message and ("interesa" in user_message or "quiero" in user_message or "elijo" in user_message):
-                                logger.info(f"🔍 DEBUG - Habitación identificada por interés del usuario: {hab.get('nombre')}")
+                                logger.info(f"🔍 DEBUG - Habitación identificada del frontend (respuesta bot): {hab.get('nombre')}")
                                 return hab
             
             # 2. Buscar en contexto de sesión de BD
@@ -2364,11 +2529,17 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
             # 3. IDENTIFICAR HABITACIÓN ESPECÍFICA DEL CONTEXTO
             habitacion_elegida = self._identificar_habitacion_del_contexto(context)
             
-            # Si no se identificó habitación del contexto, buscar en query_params
+            # Logging para debug
+            if habitacion_elegida:
+                logger.info(f"🎯 DEBUG PROCESO_RESERVA - Habitación identificada del contexto conversacional: '{habitacion_elegida.get('nombre')}'")
+            else:
+                logger.info(f"🎯 DEBUG PROCESO_RESERVA - No se identificó habitación del contexto conversacional")
+            
+            # Si no se identificó habitación del contexto, buscar en query_params (frontend) como fallback
             if not habitacion_elegida:
                 habitacion_previa = query_params.get('previous_habitacion')
                 if habitacion_previa:
-                    logger.info(f"🎯 DEBUG PROCESO_RESERVA - Habitación del frontend: '{habitacion_previa}'")
+                    logger.info(f"🎯 DEBUG PROCESO_RESERVA - Usando habitación del frontend como fallback: '{habitacion_previa}'")
                     habitacion_elegida = self._mapear_nombre_a_habitacion(habitacion_previa, habitaciones)
             
             # 🎯 MEMORIA CONVERSACIONAL: Si no hay habitación, buscar en sesión de proceso previo
@@ -2378,10 +2549,16 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                     logger.info(f"🎯 DEBUG PROCESO_RESERVA - Habitación de proceso previo: '{previous_habitacion_nombre}'")
                     habitacion_elegida = self._mapear_nombre_a_habitacion(previous_habitacion_nombre, habitaciones)
             
-            # 4. OBTENER NÚMERO DE HUÉSPEDES (del mensaje del usuario)
-            huespedes = query_params.get('guests')  # Sin default - debe ser especificado por el usuario
+            # 4. OBTENER NÚMERO DE HUÉSPEDES (del mensaje del usuario O contexto conversacional)
+            huespedes = query_params.get('guests')  # Primero del mensaje actual
             
-            # 🎯 MEMORIA CONVERSACIONAL: Si no hay huéspedes aquí, buscar en contexto de sesión
+            # 🎯 MEMORIA CONVERSACIONAL: Si no hay huéspedes aquí, buscar en CONTEXTO CONVERSACIONAL
+            if not huespedes:
+                huespedes = self._extract_guest_count_from_context(context)
+                if huespedes:
+                    logger.info(f"🎯 DEBUG PROCESO_RESERVA - Huéspedes recuperados del contexto conversacional: {huespedes}")
+            
+            # 🎯 MEMORIA CONVERSACIONAL: Como último recurso, buscar en contexto de sesión
             if not huespedes and session_context:
                 previous_guests = session_context.get('last_guests')
                 if previous_guests:
@@ -2405,6 +2582,7 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                 if habitacion_details:
                     capacidad_maxima = habitacion_details.get('capacidad', 0)
                     if huespedes > capacidad_maxima:
+                        # 🚨 CAPACIDAD EXCEDIDA - Cambiar el tipo de query para usar prompt específico
                         context["reserva_error"] = f"La {habitacion_nombre} tiene capacidad máxima para {capacidad_maxima} personas"
                         context["reserva_capacidad_excedida"] = {
                             "habitacion_nombre": habitacion_nombre,
@@ -2416,7 +2594,11 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                                 "check_in": check_in,
                                 "check_out": check_out
                             }
+                        
+                        # 🔄 CAMBIAR QUERY TYPE para usar prompt de capacidad excedida con habitación elegida
+                        context["query_type_override"] = "capacidad_excedida_con_habitacion"
                         logger.info(f"🎯 DEBUG PROCESO_RESERVA - Error: Capacidad excedida ({huespedes} > {capacidad_maxima})")
+                        logger.info(f"🔄 QUERY TYPE OVERRIDE - Cambiando a: capacidad_excedida_con_habitacion")
                         return  # ← Salir también en caso de capacidad excedida
                     else:
                         # TODO PERFECTO - Generar URL
@@ -2434,7 +2616,6 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                         }
                         
                         context["proceso_reserva_caso"] = "caso1"  # ← Asignar caso1 cuando URL se genera automáticamente
-                        logger.info(f"🎯 DEBUG PROCESO_RESERVA - URL generada automáticamente: {checkout_url}")
                         # Saltar validaciones individuales - ir directo a determinación de caso
                         return  # ← IMPORTANTE: Ir directo a determinación de caso
             
@@ -2461,7 +2642,6 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
                 }
                 
                 context["proceso_reserva_caso"] = "caso1"  # ← Asignar caso1 cuando URL se genera en validación final
-                logger.info(f"🎯 DEBUG PROCESO_RESERVA - URL generada en validación final: {checkout_url}")
                 
             elif not habitacion_elegida:
                 # CASO 2: Falta habitación específica
@@ -2641,9 +2821,440 @@ FECHA CONSULTADA: {context['error_fecha_pasada']['fecha_consultada']}"""
             query_string = "&".join([f"{k}={v}" for k, v in params.items()])
             checkout_url = f"{frontend_url}/checkout?{query_string}"
             
-            logger.info(f"🎯 DEBUG URL - Generada: {checkout_url}")
             return checkout_url
             
         except Exception as e:
             logger.error(f"Error generando URL de checkout: {e}")
             return f"{settings.frontend_url}/checkout"
+
+    def _generar_url_checkout_multiple(
+        self, 
+        hospedaje_id: str, 
+        habitacion_ids: List[str], 
+        fecha_inicio: str, 
+        fecha_fin: str, 
+        huespedes: int
+    ) -> str:
+        """Genera la URL de checkout para múltiples habitaciones"""
+        try:
+            # URL base del frontend
+            frontend_url = settings.frontend_url
+            
+            # Concatenar IDs de habitaciones separados por comas
+            habitacion_ids_str = ",".join(habitacion_ids)
+            
+            # Parámetros de la URL
+            params = {
+                "hospedajeId": hospedaje_id,
+                "habitacionIds": habitacion_ids_str,  # IDs concatenados con comas
+                "fechaInicio": fecha_inicio,     # YYYY-MM-DD
+                "fechaFin": fecha_fin,          # YYYY-MM-DD  
+                "huespedes": str(huespedes)     # Número total de huéspedes
+            }
+            
+            # Construir query string
+            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+            checkout_url = f"{frontend_url}/checkout?{query_string}"
+            
+            return checkout_url
+            
+        except Exception as e:
+            logger.error(f"Error generando URL de checkout múltiple: {e}")
+            return f"{settings.frontend_url}/checkout"
+
+    def _calcular_habitaciones_necesarias(
+        self, 
+        guests: int, 
+        habitaciones_disponibles: List[Dict[str, Any]]
+    ) -> Tuple[int, List[Dict[str, Any]]]:
+        """
+        Calcula qué habitaciones usar para alojar el número de huéspedes
+        Retorna: (cantidad_necesaria, lista_habitaciones_seleccionadas)
+        """
+        try:
+            if not habitaciones_disponibles:
+                return 0, []
+            
+            # Ordenar habitaciones por capacidad (las más grandes primero para optimizar)
+            habitaciones_ordenadas = sorted(
+                habitaciones_disponibles, 
+                key=lambda h: h.get("capacidad", 2), 
+                reverse=True
+            )
+            
+            habitaciones_seleccionadas = []
+            capacidad_acumulada = 0
+            
+            # Algoritmo greedy: tomar habitaciones hasta cubrir la capacidad necesaria
+            for habitacion in habitaciones_ordenadas:
+                if capacidad_acumulada >= guests:
+                    break
+                    
+                hab_capacidad = habitacion.get("capacidad", 2)
+                habitaciones_seleccionadas.append(habitacion)
+                capacidad_acumulada += hab_capacidad
+                
+                logger.info(f"🎯 DEBUG CÁLCULO - Agregada {habitacion.get('nombre')} (cap: {hab_capacidad}), total: {capacidad_acumulada}")
+            
+            # Verificar si se puede alojar a todos los huéspedes
+            if capacidad_acumulada < guests:
+                logger.warning(f"🎯 DEBUG CÁLCULO - No se puede alojar {guests} huéspedes (capacidad máxima: {capacidad_acumulada})")
+                return 0, []
+            
+            # Verificar que no excedamos el número de habitaciones del hospedaje
+            max_habitaciones = len(habitaciones_disponibles)
+            if len(habitaciones_seleccionadas) > max_habitaciones:
+                logger.warning(f"🎯 DEBUG CÁLCULO - Se requieren más habitaciones ({len(habitaciones_seleccionadas)}) de las disponibles ({max_habitaciones})")
+                return 0, []
+            
+            logger.info(f"🎯 DEBUG CÁLCULO - Solución encontrada: {len(habitaciones_seleccionadas)} habitaciones para {guests} huéspedes")
+            return len(habitaciones_seleccionadas), habitaciones_seleccionadas
+            
+        except Exception as e:
+            logger.error(f"Error calculando habitaciones necesarias: {e}")
+            return 0, []
+
+    async def _handle_reserva_multiple(
+        self,
+        context: Dict[str, Any],
+        hospedaje_id: str,
+        message: str
+    ):
+        """Maneja solicitudes de reserva de múltiples habitaciones"""
+        try:
+            logger.info(f"🎯 DEBUG RESERVA_MULTIPLE - Iniciando manejo de reserva múltiple")
+            logger.info(f"🎯 DEBUG RESERVA_MULTIPLE - Mensaje: '{message}'")
+            
+            # Obtener fechas del contexto
+            query_params = context.get("query_params", {})
+            check_in = query_params.get('check_in')
+            check_out = query_params.get('check_out')
+            
+            if not check_in or not check_out:
+                context["response_text"] = "Para generar las reservas necesito confirmar las fechas. ¿Para qué fechas querés reservar las habitaciones?"
+                return
+            
+            # Obtener habitaciones disponibles del contexto
+            availability_real = context.get("availability_real", {})
+            if not availability_real:
+                context["response_text"] = "Primero necesito consultar la disponibilidad. ¿Para qué fechas querés reservar?"
+                return
+            
+            hospedaje_disp = availability_real.get("hospedaje_disponibilidad", {})
+            habitaciones_disponibles = hospedaje_disp.get("detalle_habitaciones", [])
+            
+            if len(habitaciones_disponibles) < 2:
+                context["response_text"] = f"Para las fechas del {check_in} al {check_out} solo tenemos {len(habitaciones_disponibles)} habitación disponible. ¿Te interesa reservarla o prefieres consultar otras fechas?"
+                return
+            
+            # Extraer número de huéspedes del historial o mensaje
+            guests = query_params.get('guests') or self._extract_guest_count_from_context(context)
+            if not guests:
+                guests = 4  # Default para múltiples habitaciones
+            
+            # Calcular cuántas habitaciones se necesitan y cuáles usar
+            habitaciones_necesarias, habitaciones_seleccionadas = self._calcular_habitaciones_necesarias(
+                guests, habitaciones_disponibles
+            )
+            
+            if not habitaciones_seleccionadas:
+                context["response_text"] = f"No puedo generar una combinación de habitaciones para {guests} personas. ¿Podrías confirmar el número de huéspedes?"
+                return
+            
+            # Generar una sola URL con múltiples habitaciones
+            habitacion_ids = [hab["id"] for hab in habitaciones_seleccionadas]
+            url_checkout = self._generar_url_checkout_multiple(
+                hospedaje_id=hospedaje_id,
+                habitacion_ids=habitacion_ids,
+                fecha_inicio=check_in,
+                fecha_fin=check_out,
+                huespedes=guests
+            )
+            
+            # Preparar info de habitaciones para respuesta
+            habitaciones_info = []
+            capacidad_total = 0
+            for habitacion in habitaciones_seleccionadas:
+                hab_info = {
+                    "nombre": habitacion.get("nombre"),
+                    "capacidad": habitacion.get("capacidad", 2)
+                }
+                habitaciones_info.append(hab_info)
+                capacidad_total += hab_info["capacidad"]
+                
+                logger.info(f"🎯 DEBUG RESERVA_MULTIPLE - Habitación seleccionada: {hab_info['nombre']} (capacidad: {hab_info['capacidad']})")
+            
+            # Generar respuesta
+            fecha_formateada_inicio = check_in.replace("-", "/")
+            fecha_formateada_fin = check_out.replace("-", "/")
+            
+            response_text = f"¡Perfecto! He generado tu enlace de reserva para {len(habitaciones_seleccionadas)} habitaciones del {fecha_formateada_inicio} al {fecha_formateada_fin}:\n\n"
+            
+            # Mostrar habitaciones incluidas
+            for i, hab_info in enumerate(habitaciones_info, 1):
+                response_text += f"{i}. **{hab_info['nombre']}** (capacidad: {hab_info['capacidad']} personas)\n"
+            
+            response_text += f"\n**Capacidad total**: {capacidad_total} personas\n"
+            response_text += f"**Huéspedes**: {guests} personas\n\n"
+            response_text += f"**🔗 Enlace de reserva**:\n{url_checkout}\n\n"
+            response_text += "¡Hacé clic en el enlace para completar la reserva de todas las habitaciones juntas! 🎉"
+            
+            context["response_text"] = response_text
+            
+            # Guardar contexto de reserva múltiple
+            await self._save_reserva_context_multiple(
+                context, 
+                hospedaje_id, 
+                habitaciones_info, 
+                check_in, 
+                check_out, 
+                guests,
+                url_checkout
+            )
+            
+        except Exception as e:
+            logger.error(f"Error manejando reserva múltiple: {e}")
+            context["response_text"] = "Ocurrió un error al generar las reservas múltiples. ¿Podés intentar nuevamente?"
+
+    def _extract_guest_count_from_context(self, context: Dict[str, Any]) -> Optional[int]:
+        """Extrae el número de huéspedes del contexto conversacional"""
+        try:
+            # 1. Buscar en query_params primero
+            query_params = context.get("query_params", {})
+            if query_params.get("guests"):
+                logger.info(f"🔍 HUÉSPEDES CONTEXTO - Encontrados en query_params: {query_params['guests']}")
+                return query_params["guests"]
+            
+            # 2. Buscar en frontend_conversation (revisar todos los mensajes del usuario)
+            frontend_conversation = context.get("frontend_conversation", {})
+            if frontend_conversation:
+                recent_messages = frontend_conversation.get("recent_messages", [])
+                logger.info(f"🔍 HUÉSPEDES CONTEXTO - Revisando {len(recent_messages)} mensajes del historial")
+                
+                # Revisar todos los mensajes del usuario de más reciente a más antiguo
+                for i, msg in enumerate(reversed(recent_messages)):
+                    if msg.get("role") == "user":
+                        user_message = msg.get("message", "").lower()
+                        logger.info(f"🔍 HUÉSPEDES CONTEXTO - Mensaje {i+1}: '{user_message[:50]}...'")
+                        
+                        # Usar la función existente para extraer huéspedes
+                        guest_count = self._extract_guest_count(user_message)
+                        if guest_count:
+                            logger.info(f"✅ HUÉSPEDES CONTEXTO - Encontrados: {guest_count} personas")
+                            return guest_count
+                        
+                        # También buscar patrones específicos adicionales
+                        import re
+                        patterns = [
+                            r'para\s+(\d+)\s*personas?',
+                            r'somos\s+(\d+)',
+                            r'(\d+)\s*huéspedes?',
+                            r'(\d+)\s*personas?'
+                        ]
+                        
+                        for pattern in patterns:
+                            match = re.search(pattern, user_message)
+                            if match:
+                                num = int(match.group(1))
+                                if 1 <= num <= 20:  # Rango razonable
+                                    logger.info(f"✅ HUÉSPEDES CONTEXTO - Encontrados con patrón {pattern}: {num}")
+                                    return num
+                
+            logger.info("❌ HUÉSPEDES CONTEXTO - No encontrados en el historial")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Error extrayendo huéspedes del contexto: {e}")
+            return None
+
+    async def _save_reserva_context_multiple(
+        self,
+        context: Dict[str, Any],
+        hospedaje_id: str,
+        habitaciones_info: List[Dict],
+        check_in: str,
+        check_out: str,
+        guests: int,
+        url_checkout: str
+    ):
+        """Guarda el contexto de reserva múltiple en la sesión"""
+        try:
+            # Solo guardar si hay datos de usuario
+            user_id = context.get("user_id")
+            conversation_id = context.get("conversation_id")
+            
+            if not user_id or not conversation_id:
+                logger.info("🎯 MEMORIA - No hay user_id o conversation_id, no guardando contexto")
+                return
+                
+            reserva_data = {
+                "tipo": "reserva_multiple",
+                "hospedaje_id": hospedaje_id,
+                "habitaciones": habitaciones_info,
+                "fecha_inicio": check_in,
+                "fecha_fin": check_out,
+                "huespedes": guests,
+                "url_checkout": url_checkout,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            reserva_json = json.dumps(reserva_data)
+            
+            await self.db_service.execute_query(
+                """
+                INSERT INTO chat_sessions (hospedaje_id, user_id, conversation_id, session_data, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (hospedaje_id, user_id, conversation_id) 
+                DO UPDATE SET 
+                    session_data = EXCLUDED.session_data || chat_sessions.session_data,
+                    updated_at = NOW()
+                """,
+                (hospedaje_id, user_id, conversation_id, reserva_json)
+            )
+            
+            logger.info(f"🎯 MEMORIA - Contexto de reserva múltiple guardado: {reserva_data}")
+            
+        except Exception as e:
+            logger.error(f"Error guardando contexto de reserva múltiple: {e}")
+
+    async def _analyze_capacity_requirements(self, message: str, context: Dict[str, Any], query_type: str) -> Dict[str, Any]:
+        """Analiza si la consulta excede la capacidad de las habitaciones y maneja el caso"""
+        try:
+            # Extraer número de huéspedes del mensaje
+            numero_huespedes = self._extract_guest_count(message)
+            if not numero_huespedes:
+                return {"capacity_exceeded": False}
+            
+            # Obtener habitaciones disponibles del contexto
+            habitaciones_disponibles = []
+            availability_real = context.get("availability_real", {})
+            if availability_real:
+                hospedaje_disp = availability_real.get("hospedaje_disponibilidad", {})
+                habitaciones_disponibles = hospedaje_disp.get("detalle_habitaciones", [])
+            
+            # Si no hay habitaciones disponibles, no hay problema de capacidad
+            if not habitaciones_disponibles:
+                return {"capacity_exceeded": False}
+            
+            # Calcular capacidad máxima individual
+            capacidad_maxima = max(hab.get("capacidad", 2) for hab in habitaciones_disponibles)
+            
+            # Verificar si excede la capacidad
+            if numero_huespedes <= capacidad_maxima:
+                return {"capacity_exceeded": False}
+            
+            logger.info(f"🚨 CAPACIDAD EXCEDIDA - Huéspedes: {numero_huespedes}, Capacidad máxima: {capacidad_maxima}")
+            
+            # Detectar si mencionó habitación específica EN EL MENSAJE o YA TENÍA UNA ELEGIDA
+            habitacion_especifica = self._extract_specific_room(message, habitaciones_disponibles)
+            
+            # Buscar si ya hay una habitación elegida del contexto conversacional
+            habitacion_elegida_contexto = self._identificar_habitacion_del_contexto(context)
+            
+            # Calcular habitaciones necesarias
+            habitaciones_necesarias = (numero_huespedes + capacidad_maxima - 1) // capacidad_maxima  # Ceiling division
+            
+            # Generar combinaciones posibles
+            combinaciones = self._generate_room_combinations(habitaciones_disponibles, numero_huespedes)
+            
+            # Determinar el tipo de consulta específico
+            if habitacion_especifica:
+                new_query_type = "capacidad_excedida_especifica"
+                logger.info(f"🎯 CAPACIDAD EXCEDIDA - Habitación mencionada en mensaje: {habitacion_especifica}")
+            elif habitacion_elegida_contexto:
+                new_query_type = "capacidad_excedida_con_habitacion"
+                logger.info(f"🎯 CAPACIDAD EXCEDIDA - Habitación del contexto: {habitacion_elegida_contexto.get('nombre')}")
+            else:
+                new_query_type = "capacidad_excedida_general"
+                logger.info(f"🎯 CAPACIDAD EXCEDIDA - Consulta general sin habitación específica")
+            
+            # Contexto mejorado
+            enhanced_context = {
+                "capacidad_excedida": {
+                    "numero_huespedes": numero_huespedes,
+                    "capacidad_maxima_individual": capacidad_maxima,
+                    "habitacion_especifica": habitacion_especifica,
+                    "habitacion_elegida_contexto": habitacion_elegida_contexto,
+                    "habitaciones_necesarias": habitaciones_necesarias,
+                    "combinaciones_posibles": combinaciones,
+                    "habitaciones_disponibles": habitaciones_disponibles
+                }
+            }
+            
+            return {
+                "capacity_exceeded": True,
+                "new_query_type": new_query_type,
+                "enhanced_context": enhanced_context
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analizando capacidad: {e}")
+            return {"capacity_exceeded": False}
+    
+    def _extract_guest_count(self, message: str) -> Optional[int]:
+        """Extrae el número de huéspedes del mensaje"""
+        import re
+        
+        # Patrones para detectar números de personas
+        patterns = [
+            r'para\s+(\d+)\s+personas?',
+            r'somos\s+(\d+)\s+personas?',
+            r'(\d+)\s+huéspedes?',
+            r'grupo\s+de\s+(\d+)',
+            r'familia\s+de\s+(\d+)',
+            r'(\d+)\s+personas?',
+        ]
+        
+        message_lower = message.lower()
+        for pattern in patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                return int(match.group(1))
+        
+        return None
+    
+    def _extract_specific_room(self, message: str, habitaciones_disponibles: List[Dict]) -> Optional[str]:
+        """Detecta si el usuario mencionó una habitación específica"""
+        message_lower = message.lower()
+        
+        for habitacion in habitaciones_disponibles:
+            nombre_habitacion = habitacion.get("nombre", "").lower()
+            if nombre_habitacion and nombre_habitacion in message_lower:
+                return habitacion.get("nombre")
+        
+        return None
+    
+    def _generate_room_combinations(self, habitaciones_disponibles: List[Dict], numero_huespedes: int) -> List[Dict]:
+        """Genera combinaciones posibles de habitaciones para alojar a todos los huéspedes"""
+        from itertools import combinations
+        
+        combinaciones_validas = []
+        
+        # Probar combinaciones de 2 habitaciones (más común)
+        if len(habitaciones_disponibles) >= 2:
+            for combo in combinations(habitaciones_disponibles, 2):
+                capacidad_total = sum(hab.get("capacidad", 2) for hab in combo)
+                if capacidad_total >= numero_huespedes:
+                    combinaciones_validas.append({
+                        "habitaciones": [hab.get("nombre") for hab in combo],
+                        "ids": [hab.get("id") for hab in combo],
+                        "capacidad_total": capacidad_total,
+                        "distribucion": f"{numero_huespedes // 2} personas en cada habitación" if numero_huespedes % 2 == 0 else f"{numero_huespedes // 2 + 1} en una, {numero_huespedes // 2} en otra"
+                    })
+        
+        # Si no hay combinaciones de 2, probar con todas las disponibles
+        if not combinaciones_validas and len(habitaciones_disponibles) >= 3:
+            capacidad_total = sum(hab.get("capacidad", 2) for hab in habitaciones_disponibles)
+            if capacidad_total >= numero_huespedes:
+                combinaciones_validas.append({
+                    "habitaciones": [hab.get("nombre") for hab in habitaciones_disponibles],
+                    "ids": [hab.get("id") for hab in habitaciones_disponibles],
+                    "capacidad_total": capacidad_total,
+                    "distribucion": f"Distribuir {numero_huespedes} personas en {len(habitaciones_disponibles)} habitaciones"
+                })
+        
+        return combinaciones_validas
+
+    def _is_anonymous_user(self, user_id: str) -> bool:
+        """Determina si el usuario es anónimo y no debe guardarse en BD"""
+        return user_id in ["anonymous", "anónimo", ""] or user_id.startswith("temp_") or user_id.startswith("guest_")

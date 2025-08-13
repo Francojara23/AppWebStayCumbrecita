@@ -40,6 +40,9 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
   const [error, setError] = useState<string | null>(null)
   const sessionIdRef = useRef<string>("")
   const hasRestoredMessagesRef = useRef<boolean>(false)
+  // 🚫 Anti-doble-envío: bloqueo inmediato y ventana corta de idempotencia en UI
+  const sendingRef = useRef<boolean>(false)
+  const lastSendRef = useRef<{ hash: string; ts: number }>({ hash: "", ts: 0 })
 
   // 🆕 Hook del sistema híbrido de contexto
   const { 
@@ -114,7 +117,25 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
 
   // Enviar mensaje al chatbot
   const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim() || isLoading || !context) return
+    const raw = message
+    const trimmed = raw.trim()
+    if (!trimmed || !context) return
+
+    // Bloqueo inmediato para evitar carreras (Enter + click)
+    if (sendingRef.current) return
+
+    // Ventana corta de idempotencia en el cliente (2s por mensaje normalizado)
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ")
+    const now = Date.now()
+    const hash = normalize(trimmed)
+    if (now - lastSendRef.current.ts < 2000 && lastSendRef.current.hash === hash) {
+      console.warn("⛔ Mensaje duplicado ignorado (ventana 2s)")
+      return
+    }
+
+    sendingRef.current = true
+    lastSendRef.current = { hash, ts: now }
+    if (isLoading) return
 
     setIsLoading(true)
     setError(null)
@@ -122,7 +143,7 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
     // Agregar mensaje del usuario
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      message: message.trim(),
+      message: trimmed,
       role: "user",
       timestamp: new Date()
     }
@@ -140,7 +161,7 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
 
     try {
       // 🔧 Detectar y limpiar contexto para consultas generales del hospedaje
-      handleGeneralHospedajeQuery(message.trim())
+      handleGeneralHospedajeQuery(trimmed)
 
       // 🆕 Obtener token real (no como string)
       const realToken = isAuthenticated ? authUtils.getToken() : null
@@ -148,7 +169,7 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
       // 🆕 Preparar request con contexto híbrido completo
       const chatRequest = {
         user_id: isAuthenticated ? user?.id || "anonymous" : "anonymous",
-        message: message.trim(),
+        message: trimmed,
         token: realToken, // Token real (null o string JWT)
         session_id: context.sessionId,
         context: context, // 🆕 Enviar contexto híbrido completo (ya limpiado si es consulta general)
@@ -202,7 +223,7 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
       addMessage(botContextMessage)
 
       // 🆕 Extraer y actualizar información contextual
-      extractAndUpdateDates(message.trim(), chatResponse.response)
+      extractAndUpdateDates(trimmed, chatResponse.response)
 
     } catch (error) {
       console.error('Error enviando mensaje:', error)
@@ -229,6 +250,8 @@ export function useChatbot({ config, isOpen }: UseChatbotProps) {
       addMessage(errorContextMessage)
     } finally {
       setIsLoading(false)
+      sendingRef.current = false
+      lastSendRef.current = { hash, ts: Date.now() }
     }
   }, [config, isAuthenticated, user, isLoading, context, addMessage, extractAndUpdateDates, handleGeneralHospedajeQuery])
 

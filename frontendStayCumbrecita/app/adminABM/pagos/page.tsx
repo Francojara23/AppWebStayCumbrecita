@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import DeleteConfirmationDialog from "@/components/delete-confirmation-dialog"
+
 import { getPagosForAdmin, type GetPagosResponse } from "@/app/actions/admin/getPagos"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
@@ -60,8 +60,7 @@ export default function PagosPage() {
   const [showCanceledOrRefunded, setShowCanceledOrRefunded] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null)
+
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [selectedHospedaje, setSelectedHospedaje] = useState<string>("all")
@@ -180,19 +179,7 @@ export default function PagosPage() {
     setIsDetailOpen(true)
   }
 
-  const handleDeleteClick = (paymentId: string) => {
-    setPaymentToDelete(paymentId)
-    setIsDeleteDialogOpen(true)
-  }
 
-  const handleConfirmDelete = () => {
-    // Here you would implement the actual delete logic
-    console.log(`Deleting payment: ${paymentToDelete}`)
-    setIsDeleteDialogOpen(false)
-    setPaymentToDelete(null)
-    // In a real app, you would remove the item from the database
-    // and then refresh the list
-  }
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -357,9 +344,7 @@ export default function PagosPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleViewDetails(payment)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(payment.id)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+
                       </div>
                     </TableCell>
                   </TableRow>
@@ -608,14 +593,7 @@ export default function PagosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <DeleteConfirmationDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleConfirmDelete}
-        title="Eliminar Pago"
-        description="¿Estás seguro de que deseas eliminar este pago? Esta acción no se puede deshacer."
-      />
+
     </div>
   )
 }

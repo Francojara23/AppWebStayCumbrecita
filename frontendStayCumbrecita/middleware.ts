@@ -112,7 +112,9 @@ export function middleware(request: NextRequest) {
     // Si no hay token válido, redirigir a login
     if (!hasValidToken) {
       const loginUrl = new URL('/auth/login/tourist', request.url)
-      loginUrl.searchParams.set('callbackUrl', pathname)
+      // Preservar query params y hash para volver exactamente a la URL original
+      const fullPath = `${pathname}${request.nextUrl.search || ''}${request.nextUrl.hash || ''}`
+      loginUrl.searchParams.set('callbackUrl', fullPath)
       return NextResponse.redirect(loginUrl)
     }
     
@@ -128,7 +130,9 @@ export function middleware(request: NextRequest) {
   // Si es una ruta protegida (no checkout) y no hay token válido
   if (isProtectedRoute && !hasValidToken) {
     const loginUrl = new URL('/auth/login/tourist', request.url)
-    loginUrl.searchParams.set('callbackUrl', pathname)
+    // Preservar query params y hash para volver exactamente a la URL original
+    const fullPath = `${pathname}${request.nextUrl.search || ''}${request.nextUrl.hash || ''}`
+    loginUrl.searchParams.set('callbackUrl', fullPath)
     return NextResponse.redirect(loginUrl)
   }
   

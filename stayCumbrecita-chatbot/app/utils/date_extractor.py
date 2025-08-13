@@ -7,14 +7,15 @@ logger = logging.getLogger(__name__)
 
 class DateExtractor:
     def __init__(self):
-        # Patrones para extraer fechas
+        # Patrones para extraer fechas - ORDENADOS DE MÁS ESPECÍFICO A MÁS GENERAL
         self.date_patterns = [
-            # DD/MM/YYYY o DD-MM-YYYY
-            (r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})', self._parse_dmy),
-            # DD de MMMM (ej: 11 de julio, 14 de enero)
-            (r'(\d{1,2})\s+de\s+(\w+)', self._parse_day_month),
+            # 🔥 PATRONES DE RANGOS PRIMERO (más específicos)
             # del DD al DD de MMMM (ej: del 11 al 14 de julio)
             (r'del\s+(\d{1,2})\s+al\s+(\d{1,2})\s+de\s+(\w+)', self._parse_range_month),
+            # DD/MM/YYYY o DD-MM-YYYY
+            (r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})', self._parse_dmy),
+            # DD de MMMM (ej: 11 de julio, 14 de enero) - DESPUÉS de los rangos
+            (r'(\d{1,2})\s+de\s+(\w+)', self._parse_day_month),
             # desde DD hasta DD de MMMM
             (r'desde\s+(\d{1,2})\s+hasta\s+(\d{1,2})\s+de\s+(\w+)', self._parse_range_month),
             # entre DD y DD de MMMM
@@ -80,6 +81,8 @@ class DateExtractor:
     def extract_date_info(self, message: str) -> Dict[str, Any]:
         """Extrae información de fechas del mensaje"""
         message_lower = message.lower()
+        logger.info(f"🔍 DEBUG EXTRACT - Mensaje original: '{message}'")
+        logger.info(f"🔍 DEBUG EXTRACT - Mensaje lower: '{message_lower}'")
         
         result = {
             'has_dates': False,
@@ -91,34 +94,56 @@ class DateExtractor:
         }
         
         try:
-            # Buscar patrones de fechas
+            # 🔧 BUSCAR PATRONES CON PRIORIDAD - detener en el primer patrón que funcione
             for pattern, parser in self.date_patterns:
-                matches = re.finditer(pattern, message_lower, re.IGNORECASE)
-                for match in matches:
-                    parsed_dates = parser(match.groups())
-                    if parsed_dates:
-                        result['raw_dates'].extend(parsed_dates)
+                matches = list(re.finditer(pattern, message_lower, re.IGNORECASE))
+                if matches:
+                    logger.info(f"🔍 DEBUG PATTERN - Patrón encontrado: {pattern}")
+                    pattern_dates = []
+                    for match in matches:
+                        parsed_dates = parser(match.groups())
+                        if parsed_dates:
+                            logger.info(f"🔍 DEBUG PATTERN - Fechas parseadas: {parsed_dates}")
+                            pattern_dates.extend(parsed_dates)
+                    
+                    if pattern_dates:
+                        result['raw_dates'].extend(pattern_dates)
                         result['has_dates'] = True
+                        break  # Detener búsqueda después del primer patrón exitoso
             
             # Procesar fechas encontradas
             if result['raw_dates']:
                 if len(result['raw_dates']) == 1:
                     result['single_date'] = result['raw_dates'][0]
                 elif len(result['raw_dates']) == 2:
-                    result['check_in'] = result['raw_dates'][0]
-                    result['check_out'] = result['raw_dates'][1]
+                    # 🔧 ORDENAR las 2 fechas cronológicamente 
+                    sorted_dates = sorted(result['raw_dates'])
+                    result['check_in'] = sorted_dates[0]  # Fecha más temprana
+                    result['check_out'] = sorted_dates[1]  # Fecha más tardía
                     result['date_range'] = {
-                        'start': result['raw_dates'][0],
-                        'end': result['raw_dates'][1]
+                        'start': sorted_dates[0],
+                        'end': sorted_dates[1]
                     }
+                    logger.info(f"🔍 DEBUG FECHAS 2 - Original: {result['raw_dates']}, Ordenadas: {sorted_dates}")
                 elif len(result['raw_dates']) > 2:
-                    # Tomar primera y última fecha
-                    result['check_in'] = result['raw_dates'][0]
-                    result['check_out'] = result['raw_dates'][-1]
-                    result['date_range'] = {
-                        'start': result['raw_dates'][0],
-                        'end': result['raw_dates'][-1]
-                    }
+                    # 🔧 ORDENAR fechas cronológicamente para tomar check_in y check_out correctos
+                    unique_dates = list(set(result['raw_dates']))  # Eliminar duplicados
+                    unique_dates.sort()  # Ordenar cronológicamente
+                    
+                    logger.info(f"🔍 DEBUG FECHAS - Raw dates: {result['raw_dates']}")
+                    logger.info(f"🔍 DEBUG FECHAS - Unique sorted dates: {unique_dates}")
+                    
+                    if len(unique_dates) >= 2:
+                        result['check_in'] = unique_dates[0]  # Primera fecha (más temprana)
+                        result['check_out'] = unique_dates[1]  # Segunda fecha (más tardía) 
+                        result['date_range'] = {
+                            'start': unique_dates[0],
+                            'end': unique_dates[1]
+                        }
+                        logger.info(f"🔍 DEBUG FECHAS - Asignadas: check_in={unique_dates[0]}, check_out={unique_dates[1]}")
+                    else:
+                        result['single_date'] = unique_dates[0]
+                        logger.info(f"🔍 DEBUG FECHAS - Solo una fecha única: {unique_dates[0]}")
         
         except Exception as e:
             logger.error(f"Error extrayendo fechas: {e}")
@@ -185,8 +210,11 @@ class DateExtractor:
         """Parse del DD al DD de MMMM format"""
         try:
             start_day, end_day, month_name = groups
+            logger.info(f"🔍 DEBUG RANGE_MONTH - grupos: start_day={start_day}, end_day={end_day}, month_name={month_name}")
+            
             month_num = self.months_es.get(month_name.lower())
             if not month_num:
+                logger.info(f"🔍 DEBUG RANGE_MONTH - Mes no encontrado: {month_name}")
                 return []
             
             # Asumir año actual
@@ -194,12 +222,17 @@ class DateExtractor:
             start_date = f"{current_year}-{month_num:02d}-{int(start_day):02d}"
             end_date = f"{current_year}-{month_num:02d}-{int(end_day):02d}"
             
+            logger.info(f"🔍 DEBUG RANGE_MONTH - Fechas generadas: start_date={start_date}, end_date={end_date}")
+            
             # Validate dates
             datetime.strptime(start_date, "%Y-%m-%d")
             datetime.strptime(end_date, "%Y-%m-%d")
             
-            return [start_date, end_date]
-        except:
+            result = [start_date, end_date]
+            logger.info(f"🔍 DEBUG RANGE_MONTH - Resultado final: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"🔍 DEBUG RANGE_MONTH - Error: {e}")
             return []
 
     def _parse_range_current_month(self, groups: Tuple[str, ...]) -> List[str]:
