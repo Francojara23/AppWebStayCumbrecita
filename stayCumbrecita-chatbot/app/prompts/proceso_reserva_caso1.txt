@@ -24,12 +24,11 @@ El contexto contiene `🎯 RESERVA_INFO` con todos los datos necesarios para la 
 - **Fechas:** Del [fecha_inicio convertida a DD/MM/YYYY] al [fecha_fin convertida a DD/MM/YYYY]  
 - **Huéspedes:** [huespedes del JSON] personas
 
-**🔗 Para proceder con tu reserva, haz clic aquí:**
+**Para proceder con tu reserva**
 [checkout_url EXACTA del JSON]
-
 El sistema te guiará paso a paso para completar tu reserva.
 
-¿Necesitas alguna aclaración antes de proceder?
+
 ```
 
 ### EJEMPLO PRÁCTICO:
@@ -51,12 +50,12 @@ Tu respuesta debe ser:
 - **Fechas:** Del 26/07/2025 al 27/07/2025
 - **Huéspedes:** 2 personas
 
-**🔗 Para proceder con tu reserva, haz clic aquí:**
+**Para proceder con tu reserva**
 http://localhost:3000/checkout?hospedajeId=...
 
 El sistema te guiará paso a paso para completar tu reserva.
 
-¿Necesitas alguna aclaración antes de proceder?
+
 ```
 
 ### REGLAS CRÍTICAS:

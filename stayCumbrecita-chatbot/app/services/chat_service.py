@@ -283,8 +283,45 @@ class ChatService:
             logger.info(f"📤 Respuesta generada:")
             logger.info(openai_response)
             logger.info("=" * 80)
-            
-            return response.choices[0].message.content or "No se pudo generar una respuesta."
+
+            # 🔧 POST-PROCESO: "proceso_reserva" CASO1 → anexar ÚNICO checkout_url del contexto
+            try:
+                if (
+                    query_type == "proceso_reserva"
+                    and context.get("proceso_reserva_caso") == "caso1"
+                ):
+                    reserva_info = context.get("reserva_info") or {}
+                    checkout_url = reserva_info.get("checkout_url")
+                    if checkout_url:
+                        # 1) Limpiar cualquier URL de checkout que el LLM haya impreso (raw o markdown)
+                        try:
+                            # Eliminar enlaces markdown que apunten a checkout dejando solo el texto visible
+                            sanitized = re.sub(r"\[([^\]]+)\]\((https?:\/\/[^\)]+checkout[^\)]*)\)", r"\1", openai_response, flags=re.IGNORECASE)
+                            # Eliminar URLs crudas de checkout
+                            sanitized = re.sub(r"https?:\/\/\S*checkout\S*", "", sanitized, flags=re.IGNORECASE)
+                            # Eliminar líneas de CTA existentes para evitar duplicar la frase
+                            sanitized = re.sub(
+                                r"(?im)^[ \t>*-]*\**\s*\*?\s*\uD83D\uDD17?\s*para\s+proceder\s+con\s+tu\s+reserva[^\n]*\n?",
+                                "",
+                                sanitized,
+                                flags=re.IGNORECASE | re.MULTILINE
+                            )
+                            # Colapsar líneas en blanco múltiples
+                            sanitized = re.sub(r"\n{3,}", "\n\n", sanitized).strip()
+                        except Exception:
+                            # En caso de fallo en limpieza, usar respuesta original
+                            sanitized = openai_response
+
+                        # 2) Anexar un único bloque estándar con el checkout_url del contexto
+                        link_block = f"\n\n🔗 Este es el enlace para tu reserva:\n{checkout_url}"
+                        final_response = f"{sanitized}{link_block}"
+                        logger.info("🔧 POST-PROCESO caso1 - Adjuntando único checkout_url del contexto")
+                        return final_response
+            except Exception as _e:
+                # En caso de cualquier error en el post-procesado, devolver la respuesta original del LLM
+                logger.warning(f"POST-PROCESO caso1 - Error al post-procesar: {_e}")
+
+            return openai_response
             
         except Exception as e:
             logger.error(f"Error generando respuesta: {e}")
